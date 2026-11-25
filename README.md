@@ -55,15 +55,13 @@ npm run dev
 
 ## GitHub Pages
 
-リポジトリの **Settings → Pages → Build and deployment** で次を設定する。
+リポジトリの **Settings → Pages → Build and deployment** で **Source: GitHub Actions** を選ぶ。
 
-- Source: **Deploy from a branch**
-- Branch: **main**
-- Folder: **/(root)**
+公開後のURLはPages設定画面とActionsのデプロイ結果に表示される。以後は `src/` の修正、ビルド、検証を行い、`index.html` を含めて `main` に反映すると更新される。
 
-公開後のURLはPages設定画面に表示される。以後は `src/` の修正、ビルド、検証を行い、`index.html` を含めて `main` に反映すると更新される。
+`.github/workflows/ci.yml` はpushとPRでビルド結果の一致・エンジン・画面操作を検証する。**`main` へのpushが全検証に合格した場合だけ**、続くdeployジョブがPagesを更新する。PRやタグのpushでは公開しない。
 
-`.github/workflows/ci.yml` はビルド結果の一致・エンジン・画面操作を検証する。Pagesの配信はGitHub標準のブランチ公開を使うため、CIとは別に実行される。CI合格を確認してから変更を `main` に取り込む運用を推奨する。
+Pagesには `index.html` と `assets/` だけを配信し、開発用ソース、テスト、依存パッケージは配信しない。デプロイ権限はdeployジョブだけに付けている。
 
 ## 検証状況
 
@@ -72,3 +70,50 @@ VER.001の初回検証では、戦闘ルール **19/19**、ブラウザー操作
 画面操作はPlaywright＋Chromiumで実行し、844×390、667×375、390×844で横はみ出しがないことを確認。勝敗などの分岐は検証用状態から実際のボタンで操作しており、人が10階層を通して遊んだバランス検証とは異なる。
 
 **iPhone実機およびSafari／WebKitは未検証。** 横画面では盤面の表示領域を使うためマスを横長にし、小さい画面では一部の情報や手駒一覧をスクロールして確認する。
+
+## バージョン保存と巻き戻し
+
+各バージョンは、検証済みのコードをコミットし、そのコミットに注釈付きタグを付けて保存する。
+
+| ゲーム内の表記 | Gitタグ |
+| --- | --- |
+| VER.001 | `v0.0.1` |
+| VER.002 | `v0.0.2` |
+| VER.003 | `v0.0.3` |
+
+公開済みのタグは移動・削除・上書きしない。修正や復元も新しいコミットで残し、次の未使用バージョン番号を使う。
+
+次版を保存する例：ゲーム内のバージョン表記を更新し、ビルド・検証後にコミットとタグを作る。
+
+```sh
+npm run build
+npm test
+git add -A
+git commit -m "Release VER.002"
+git tag -a v0.0.2 -m "セカソコ！～手駒編～ VER.002"
+git push origin main
+git push origin v0.0.2
+```
+
+PRで開発する場合は、検証済みの変更が `main` に入った後のリリース対象コミットにタグを付ける。タグは保存地点。タグのpushでは公開せず、GitHub Pagesには検証に合格した `main` の `index.html` を配信する。
+
+### VER.001へ戻す例
+
+作業中の変更を先にコミットまたは退避し、最新の `main` から復元用ブランチを作る。リポジトリのルートで実行する。
+
+```sh
+git switch main
+git pull --ff-only
+git switch -c restore/ver001
+git restore --source v0.0.1 -- .
+npm ci
+npm run build
+npm test
+git add -A
+git commit -m "Restore VER.001 from v0.0.1"
+git push -u origin restore/ver001
+```
+
+`restore/ver001` から `main` へのPRを作り、差分とCIを確認してマージするとPagesもVER.001の内容へ戻る。`src/` と生成済みHTMLに加え、依存関係・テスト・文書・CIもタグ時点へ復元するため、HTMLだけ戻した後にビルドで上書きされることを防げる。
+
+復元前までの履歴は残る。復元版にも必要に応じて次の未使用番号のタグを付け、既存の `v0.0.1` はそのまま保持する。履歴を書き換える操作や強制プッシュは不要。
