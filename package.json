@@ -1,0 +1,17 @@
+{
+  "name": "sekasoko-piece",
+  "version": "0.0.1",
+  "private": true,
+  "description": "セカソコ！～手駒編～ VER.001 standalone board battle prototype",
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "check": "python3 scripts/build.py --check",
+    "test:engine": "node tests/test_engine.cjs",
+    "test:ui": "node tests/test_ui.cjs",
+    "test": "npm run check && npm run test:engine && npm run test:ui",
+    "dev": "python3 -m http.server 3000 --bind 0.0.0.0"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
