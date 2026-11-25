@@ -7,6 +7,8 @@
 
 ## 遊ぶ
 
+[ゲームを開く（GitHub Pages）](https://aespawinter0620-boop.github.io/sekasoko-piece/)
+
 GitHub Pagesの公開URLをSafariなどのブラウザーで開く。iPhoneは横画面を推奨。
 
 - 味方の駒 → 青いマスで移動、または赤い敵で攻撃。移動・攻撃はそれぞれ1行動で、敵と交代する。
