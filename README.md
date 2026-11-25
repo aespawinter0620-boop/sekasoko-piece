@@ -1,22 +1,22 @@
-# セカソコ！～手駒編～ VER.001
+# セカソコ！～手駒編～ VER.002
 
-『お気に入りの手駒と、世界の底へ。』の初回プレイアブル試作。
+『お気に入りの手駒と、世界の底へ。』のボードバトル試作。
 7×5の盤面で王を守り、倒した敵を手駒に迎え、軍団を編成して10F踏破を目指す。
 
-セカソコ本編とは独立した開発系列。ゲーム本体は外部ライブラリや外部通信に依存しない単一HTMLで動く。育成・セーブ・音・アプリ化はVER.001の対象外。
+セカソコ本編とは独立した開発系列。ゲーム本体は外部ライブラリや外部通信に依存しない単一HTMLで動く。育成・セーブ・音・アプリ化は現在の実装対象外。
 
 ## 遊ぶ
 
 [ゲームを開く（GitHub Pages）](https://aespawinter0620-boop.github.io/sekasoko-piece/)
 
-GitHub Pagesの公開URLをSafariなどのブラウザーで開く。iPhoneは横画面を推奨。
+GitHub Pagesの公開URLをSafariなどのブラウザーで開く。iPhoneの縦・横画面に対応し、どちらも盤面を画面下部に配置する。向きを変えても戦闘の進行と選択を保つ。
 
 - 味方の駒 → 青いマスで移動、または赤い敵で攻撃。移動・攻撃はそれぞれ1行動で、敵と交代する。
 - 敵の王を倒せば勝利。先に撃破した敵の手駒だけを100%獲得する。王と生存敵は獲得できない。
 - 階層の間に王1体＋手駒最大3体、コスト合計10以内で編成。同じ種類も複数使える。全員が復帰し、HP全回復する。
 - 味方の王が倒れたら敗北。10F踏破で試作版クリア。どちらも最初から再挑戦できる。
 
-PCではダウンロードした `index.html` をブラウザーで直接開いても遊べる。ファイルを `sekasoko_piece_ver001.html` に変えて配布しても動作する。再読み込み・ページ終了で進行は消える。
+PCではダウンロードした `index.html` をブラウザーで直接開いても遊べる。ファイルを `sekasoko_piece_ver002.html` に変えて配布しても動作する。再読み込み・ページ終了で進行は消える。
 
 iPhoneの「ファイル」アプリのプレビューではJavaScriptが実行されない場合があるため、実機確認はHTTP経由でSafariに読み込む方法を推奨する。
 
@@ -30,6 +30,7 @@ npx playwright install --with-deps chromium
 npm run build
 npm run test:engine
 npm run test:ui
+npm run test:responsive
 npm run dev
 ```
 
@@ -47,11 +48,13 @@ npm run dev
 | `scripts/build.py` | ソースを単一HTMLへ組み込むビルド処理 |
 | `index.html` | 生成済みのゲーム本体。GitHub Pagesで配信するファイル |
 | `tests/` | 戦闘ルールとブラウザー操作の検証 |
+| [`docs/CURRENT_SPEC.md`](docs/CURRENT_SPEC.md) | 対応コードコミットを明記した、現行仕様の全文 |
+| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | バージョンごとの累積変更履歴 |
 | `assets/characters/` | 今後のキャラクター画像の置き場。現時点では正式画像なし |
 
 更新時は `src/` を編集し、`npm run build` で `index.html` を再生成する。ソースと生成結果を一緒にコミットする。`index.html` だけを直接編集すると、次のビルドで上書きされる。
 
-`npm run check` はソースと `index.html` の一致を変更なしで確認する。`npm test` は一致確認・エンジン検証・画面操作検証をまとめて実行する。
+`npm run check` はソースと `index.html` の一致を変更なしで確認する。`npm run test:responsive` は表示方向・サイズ変更・回転中の進行を検証する。`npm test` は一致確認・エンジン検証・画面操作・表示方向の検証をまとめて実行する。
 
 画像を導入するときは、単一HTMLのオフライン実行を保つならビルドでの埋め込みも検討する。現状のビルドは画像を自動では埋め込まない。
 
@@ -71,7 +74,21 @@ VER.001の初回検証では、戦闘ルール **19/19**、ブラウザー操作
 
 画面操作はPlaywright＋Chromiumで実行し、844×390、667×375、390×844で横はみ出しがないことを確認。勝敗などの分岐は検証用状態から実際のボタンで操作しており、人が10階層を通して遊んだバランス検証とは異なる。
 
-**iPhone実機およびSafari／WebKitは未検証。** 横画面では盤面の表示領域を使うためマスを横長にし、小さい画面では一部の情報や手駒一覧をスクロールして確認する。
+VER.002の実施済み検証と現在の画面仕様は [現行仕様](docs/CURRENT_SPEC.md) を参照。開発側のiPhone実機およびSafari／WebKit検証は未実施。小さい画面では一部の情報や手駒一覧をスクロールして確認する。
+
+## 仕様書と履歴の更新
+
+[現行仕様](docs/CURRENT_SPEC.md) は最新実装の全文、[変更履歴](docs/CHANGELOG.md) は各版の累積記録として使う。公開Issueは [文書運用 #1](https://github.com/aespawinter0620-boop/sekasoko-piece/issues/1) と [画面調整 #2](https://github.com/aespawinter0620-boop/sekasoko-piece/issues/2)。
+
+変更時は次の順で整える。
+
+1. ソースと必要なテストを変更し、ビルドと該当検証を実行する。
+2. コードとテストをコミットし、そのコミットを文書の「対応コードコミット」に記録する。
+3. 現行仕様を全文更新し、変更履歴に追記する。対応バージョンと実施済み検証を明記し、文書を別コミットで保存する。
+4. 正式なDrive開発正本の同名文書にも同じ全文を反映する。接続できなければ編集可能な全文を渡し、Drive反映が未完了と報告する。
+5. 検証済みコードと対応文書がそろったリリースに注釈付きタグを付けて公開する。
+
+正式Driveの非公開URLや個人情報は公開リポジトリへ載せない。公開で参照する仕様書はこのリポジトリの `docs/` を使う。
 
 ## バージョン保存と巻き戻し
 
@@ -85,16 +102,12 @@ VER.001の初回検証では、戦闘ルール **19/19**、ブラウザー操作
 
 公開済みのタグは移動・削除・上書きしない。修正や復元も新しいコミットで残し、次の未使用バージョン番号を使う。
 
-次版を保存する例：ゲーム内のバージョン表記を更新し、ビルド・検証後にコミットとタグを作る。
+次版を保存する例：上の手順でコード・テストと対応文書のコミットまで済ませ、リリース対象のコミットに次の未使用タグを付ける。
 
 ```sh
-npm run build
-npm test
-git add -A
-git commit -m "Release VER.002"
-git tag -a v0.0.2 -m "セカソコ！～手駒編～ VER.002"
+git tag -a v0.0.3 -m "セカソコ！～手駒編～ VER.003"
 git push origin main
-git push origin v0.0.2
+git push origin v0.0.3
 ```
 
 PRで開発する場合は、検証済みの変更が `main` に入った後のリリース対象コミットにタグを付ける。タグは保存地点。タグのpushでは公開せず、GitHub Pagesには検証に合格した `main` の `index.html` を配信する。
@@ -107,15 +120,16 @@ PRで開発する場合は、検証済みの変更が `main` に入った後の�
 git switch main
 git pull --ff-only
 git switch -c restore/ver001
-git restore --source v0.0.1 -- .
+git restore --source v0.0.1 -- src scripts tests index.html package.json package-lock.json .github
 npm ci
 npm run build
 npm test
+# docs/CURRENT_SPEC.mdを復元後の仕様に更新し、docs/CHANGELOG.mdへ復元を追記
 git add -A
 git commit -m "Restore VER.001 from v0.0.1"
 git push -u origin restore/ver001
 ```
 
-`restore/ver001` から `main` へのPRを作り、差分とCIを確認してマージするとPagesもVER.001の内容へ戻る。`src/` と生成済みHTMLに加え、依存関係・テスト・文書・CIもタグ時点へ復元するため、HTMLだけ戻した後にビルドで上書きされることを防げる。
+`restore/ver001` から `main` へのPRを作り、差分とCIを確認してマージするとPagesもVER.001の内容へ戻る。`src/` と生成済みHTMLに加え、依存関係・テスト・CIをタグ時点へ復元するため、HTMLだけ戻した後にビルドで上書きされることを防げる。`docs/`、AGENTS、READMEは最新版を保持し、現行仕様書を復元後の挙動へ更新して、変更履歴へロールバックを追記してからコミットする。過去の履歴を古いタグの内容で消さない。
 
 復元前までの履歴は残る。復元版にも必要に応じて次の未使用番号のタグを付け、既存の `v0.0.1` はそのまま保持する。履歴を書き換える操作や強制プッシュは不要。
