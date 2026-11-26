@@ -1,0 +1,2621 @@
+{
+  "version": "VER.005",
+  "purpose": "Repeatable synthetic observations of the unchanged AI on 12-versus-12 armies; timing has no pass/fail threshold.",
+  "generatedAt": "2026-11-26T14:19:54.960Z",
+  "engineSha256": "bd7a2da8303c0a647457da938c54c95b935cdca205bae02af56e0f174219c8f2",
+  "environment": {
+    "node": "v24.22.3",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "AMD EPYC 9V74 80-Core Processor"
+  },
+  "config": {
+    "floors": [
+      1,
+      5,
+      10
+    ],
+    "seeds": [
+      1590317057,
+      1590317058,
+      1590317059
+    ],
+    "actionCap": 600,
+    "random": "32-bit LCG: state = (1664525 * state + 1013904223) mod 2^32; random = state / 2^32",
+    "playerArmy": "Unchanged initial 4 knights, 4 archers, 3 slimes plus king at all sampled floors; no reward-based optimization.",
+    "policies": {
+      "wait-only": "Player always waits. This is an intentionally passive control, not representative human play.",
+      "mirrored-ai": "Player uses chooseAI on a cloned state with side labels swapped; no production behavior changes."
+    },
+    "timingScope": "Only original enemy chooseAI calls; VM startup, mirrored-player decisions, engine.act, rendering and animation excluded.",
+    "progress": "No-damage plies count consecutive successful actions without damage; a capture also deals damage.",
+    "captures": "Count successful death events, including kings; rewardsCommitted counts only acquired nonking enemies.",
+    "reversal": "A moving piece returns to its previous occupied square on its next move, regardless of intervening actors.",
+    "repeatedLayout": "Side-to-move plus unit IDs/types/sides/positions/HP repeated; excludes AI history, so repetition alone is not a proven cycle."
+  },
+  "total": {
+    "fights": 18,
+    "plies": 1873,
+    "outcomes": {
+      "defeat": 12,
+      "victory": 4,
+      "action-cap": 1,
+      "clear": 1
+    },
+    "invalidActions": 0,
+    "invalidBoardStates": 0,
+    "enemyWaits": 243,
+    "enemyReversals": 0,
+    "longestNoDamagePlies": 484,
+    "longestEnemyWaitStreak": 241,
+    "chooseAI": {
+      "samples": 934,
+      "medianMs": 0.0692,
+      "p95Ms": 0.8942,
+      "maxMs": 19.189
+    },
+    "elapsedMs": 446.4
+  },
+  "limitations": [
+    "Synthetic Node simulations do not establish human difficulty, overall balance, animation feel, or iPhone performance.",
+    "Clock timing, generatedAt, and environment vary between machines and runs; fixed seeds reproduce compositions and actions for the same engine.",
+    "Floors 1, 5 and 10 sample only three seeds and two fixed player policies. Floor 1 has a fixed enemy army, so its seeds repeat the same logical fight.",
+    "Observed waiting, reversals, or action-cap endings are reported without changing AI, turn timing, combat, or encounter weights."
+  ],
+  "fights": [
+    {
+      "floor": 1,
+      "seed": 1590317057,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "goblin",
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "ended": "defeat",
+      "plies": 92,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 46,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 5,
+        "attack": 41,
+        "wait": 0,
+        "captures": 5,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 7,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u13",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u18",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u19",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u20",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u21",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u22",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u23",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u24",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u25",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 4
+        },
+        {
+          "id": "u26",
+          "type": "slime",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u27",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u28",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u29",
+          "type": "slime",
+          "side": "enemy",
+          "x": 3,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u30",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u31",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u32",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u33",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u34",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u35",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 5
+        }
+      ],
+      "chooseAI": {
+        "samples": 46,
+        "medianMs": 0.0352,
+        "p95Ms": 1.9788,
+        "maxMs": 7.0468
+      }
+    },
+    {
+      "floor": 1,
+      "seed": 1590317057,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "goblin",
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "ended": "victory",
+      "plies": 61,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 5,
+        "attack": 26,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 12,
+        "attack": 18,
+        "wait": 0,
+        "captures": 2,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 2,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 10,
+      "remainingEnemyUnits": 0,
+      "rewardsCommitted": 11,
+      "finalUnits": [
+        {
+          "id": "u12",
+          "type": "king",
+          "side": "player",
+          "x": 0,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u13",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u14",
+          "type": "knight",
+          "side": "player",
+          "x": 5,
+          "y": 1,
+          "hp": 3
+        },
+        {
+          "id": "u17",
+          "type": "archer",
+          "side": "player",
+          "x": 3,
+          "y": 4,
+          "hp": 3
+        },
+        {
+          "id": "u18",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u19",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u20",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u21",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u22",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u23",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        }
+      ],
+      "chooseAI": {
+        "samples": 30,
+        "medianMs": 0.0519,
+        "p95Ms": 1.6074,
+        "maxMs": 2.5577
+      }
+    },
+    {
+      "floor": 1,
+      "seed": 1590317058,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "goblin",
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "ended": "defeat",
+      "plies": 92,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 46,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 5,
+        "attack": 41,
+        "wait": 0,
+        "captures": 5,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 7,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u13",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u18",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u19",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u20",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u21",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u22",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u23",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u24",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u25",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 4
+        },
+        {
+          "id": "u26",
+          "type": "slime",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u27",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u28",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u29",
+          "type": "slime",
+          "side": "enemy",
+          "x": 3,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u30",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u31",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u32",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u33",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u34",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u35",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 5
+        }
+      ],
+      "chooseAI": {
+        "samples": 46,
+        "medianMs": 0.0329,
+        "p95Ms": 0.8797,
+        "maxMs": 1.3116
+      }
+    },
+    {
+      "floor": 1,
+      "seed": 1590317058,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "goblin",
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "ended": "victory",
+      "plies": 61,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 5,
+        "attack": 26,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 12,
+        "attack": 18,
+        "wait": 0,
+        "captures": 2,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 2,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 10,
+      "remainingEnemyUnits": 0,
+      "rewardsCommitted": 11,
+      "finalUnits": [
+        {
+          "id": "u12",
+          "type": "king",
+          "side": "player",
+          "x": 0,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u13",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u14",
+          "type": "knight",
+          "side": "player",
+          "x": 5,
+          "y": 1,
+          "hp": 3
+        },
+        {
+          "id": "u17",
+          "type": "archer",
+          "side": "player",
+          "x": 3,
+          "y": 4,
+          "hp": 3
+        },
+        {
+          "id": "u18",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u19",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u20",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u21",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u22",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u23",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        }
+      ],
+      "chooseAI": {
+        "samples": 30,
+        "medianMs": 0.0322,
+        "p95Ms": 0.8912,
+        "maxMs": 1.3814
+      }
+    },
+    {
+      "floor": 1,
+      "seed": 1590317059,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "goblin",
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "ended": "defeat",
+      "plies": 92,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 46,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 5,
+        "attack": 41,
+        "wait": 0,
+        "captures": 5,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 7,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u13",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u18",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u19",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u20",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u21",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u22",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u23",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u24",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u25",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 4
+        },
+        {
+          "id": "u26",
+          "type": "slime",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u27",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u28",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u29",
+          "type": "slime",
+          "side": "enemy",
+          "x": 3,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u30",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u31",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u32",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u33",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u34",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u35",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 5
+        }
+      ],
+      "chooseAI": {
+        "samples": 46,
+        "medianMs": 0.0335,
+        "p95Ms": 1.1287,
+        "maxMs": 1.5284
+      }
+    },
+    {
+      "floor": 1,
+      "seed": 1590317059,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "slime",
+        "goblin",
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "ended": "victory",
+      "plies": 61,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 5,
+        "attack": 26,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 12,
+        "attack": 18,
+        "wait": 0,
+        "captures": 2,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 2,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 10,
+      "remainingEnemyUnits": 0,
+      "rewardsCommitted": 11,
+      "finalUnits": [
+        {
+          "id": "u12",
+          "type": "king",
+          "side": "player",
+          "x": 0,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u13",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u14",
+          "type": "knight",
+          "side": "player",
+          "x": 5,
+          "y": 1,
+          "hp": 3
+        },
+        {
+          "id": "u17",
+          "type": "archer",
+          "side": "player",
+          "x": 3,
+          "y": 4,
+          "hp": 3
+        },
+        {
+          "id": "u18",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u19",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u20",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u21",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u22",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u23",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        }
+      ],
+      "chooseAI": {
+        "samples": 30,
+        "medianMs": 0.0527,
+        "p95Ms": 1.0891,
+        "maxMs": 1.7702
+      }
+    },
+    {
+      "floor": 5,
+      "seed": 1590317057,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "hamster",
+        "slime",
+        "goblin",
+        "orc",
+        "slime",
+        "goblin",
+        "golem",
+        "archer",
+        "goblin",
+        "orc",
+        "archer"
+      ],
+      "ended": "defeat",
+      "plies": 86,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 43,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 8,
+        "attack": 35,
+        "wait": 0,
+        "captures": 9,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 3,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u43",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 3,
+          "hp": 5
+        },
+        {
+          "id": "u46",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u47",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u49",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 0,
+          "y": 0,
+          "hp": 3
+        },
+        {
+          "id": "u50",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u51",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 5
+        },
+        {
+          "id": "u52",
+          "type": "orc",
+          "side": "enemy",
+          "x": 4,
+          "y": 3,
+          "hp": 9
+        },
+        {
+          "id": "u53",
+          "type": "slime",
+          "side": "enemy",
+          "x": 3,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u54",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u55",
+          "type": "golem",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 14
+        },
+        {
+          "id": "u56",
+          "type": "archer",
+          "side": "enemy",
+          "x": 3,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u57",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u58",
+          "type": "orc",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 9
+        },
+        {
+          "id": "u59",
+          "type": "archer",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 5
+        }
+      ],
+      "chooseAI": {
+        "samples": 43,
+        "medianMs": 0.0332,
+        "p95Ms": 0.9658,
+        "maxMs": 1.2327
+      }
+    },
+    {
+      "floor": 5,
+      "seed": 1590317057,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "hamster",
+        "slime",
+        "goblin",
+        "orc",
+        "slime",
+        "goblin",
+        "golem",
+        "archer",
+        "goblin",
+        "orc",
+        "archer"
+      ],
+      "ended": "action-cap",
+      "plies": 600,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 23,
+        "attack": 36,
+        "wait": 241,
+        "captures": 11,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 22,
+        "attack": 37,
+        "wait": 241,
+        "captures": 11,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 484,
+      "longestEnemyWaitStreak": 241,
+      "repeatedLayoutAndHp": 481,
+      "maxLayoutAndHpVisits": 242,
+      "endingNoDamagePlies": 484,
+      "remainingPlayerUnits": 1,
+      "remainingEnemyUnits": 1,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u36",
+          "type": "king",
+          "side": "player",
+          "x": 1,
+          "y": 2,
+          "hp": 8
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 3,
+          "y": 2,
+          "hp": 6
+        }
+      ],
+      "chooseAI": {
+        "samples": 300,
+        "medianMs": 0.0782,
+        "p95Ms": 0.3622,
+        "maxMs": 19.189
+      }
+    },
+    {
+      "floor": 5,
+      "seed": 1590317058,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "hamster",
+        "goblin",
+        "slime",
+        "orc",
+        "knight",
+        "slime",
+        "hamster",
+        "hamster",
+        "orc",
+        "orc",
+        "slime"
+      ],
+      "ended": "defeat",
+      "plies": 46,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 23,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 5,
+        "attack": 18,
+        "wait": 0,
+        "captures": 6,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 6,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u37",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u38",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 1,
+          "hp": 8
+        },
+        {
+          "id": "u40",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 3,
+          "hp": 8
+        },
+        {
+          "id": "u42",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u45",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u49",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 3
+        },
+        {
+          "id": "u50",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 5
+        },
+        {
+          "id": "u51",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u52",
+          "type": "orc",
+          "side": "enemy",
+          "x": 4,
+          "y": 3,
+          "hp": 9
+        },
+        {
+          "id": "u53",
+          "type": "knight",
+          "side": "enemy",
+          "x": 0,
+          "y": 4,
+          "hp": 8
+        },
+        {
+          "id": "u54",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u55",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 3
+        },
+        {
+          "id": "u56",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 3
+        },
+        {
+          "id": "u57",
+          "type": "orc",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 9
+        },
+        {
+          "id": "u58",
+          "type": "orc",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 9
+        },
+        {
+          "id": "u59",
+          "type": "slime",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 4
+        }
+      ],
+      "chooseAI": {
+        "samples": 23,
+        "medianMs": 0.0308,
+        "p95Ms": 0.8728,
+        "maxMs": 1.0341
+      }
+    },
+    {
+      "floor": 5,
+      "seed": 1590317058,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "hamster",
+        "goblin",
+        "slime",
+        "orc",
+        "knight",
+        "slime",
+        "hamster",
+        "hamster",
+        "orc",
+        "orc",
+        "slime"
+      ],
+      "ended": "victory",
+      "plies": 77,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 8,
+        "attack": 31,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 16,
+        "attack": 21,
+        "wait": 1,
+        "captures": 6,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 1,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 6,
+      "remainingEnemyUnits": 0,
+      "rewardsCommitted": 11,
+      "finalUnits": [
+        {
+          "id": "u36",
+          "type": "king",
+          "side": "player",
+          "x": 0,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u37",
+          "type": "knight",
+          "side": "player",
+          "x": 5,
+          "y": 1,
+          "hp": 2
+        },
+        {
+          "id": "u42",
+          "type": "archer",
+          "side": "player",
+          "x": 2,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u45",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u46",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 3,
+          "hp": 4
+        }
+      ],
+      "chooseAI": {
+        "samples": 38,
+        "medianMs": 0.0495,
+        "p95Ms": 1.0416,
+        "maxMs": 1.3843
+      }
+    },
+    {
+      "floor": 5,
+      "seed": 1590317059,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "hamster",
+        "goblin",
+        "orc",
+        "orc",
+        "goblin",
+        "orc",
+        "orc",
+        "hamster",
+        "goblin",
+        "mage",
+        "hamster"
+      ],
+      "ended": "defeat",
+      "plies": 50,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 25,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 5,
+        "attack": 20,
+        "wait": 0,
+        "captures": 6,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 6,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u37",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u38",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 1,
+          "hp": 8
+        },
+        {
+          "id": "u40",
+          "type": "knight",
+          "side": "player",
+          "x": 2,
+          "y": 3,
+          "hp": 8
+        },
+        {
+          "id": "u42",
+          "type": "archer",
+          "side": "player",
+          "x": 1,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u45",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u49",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 3
+        },
+        {
+          "id": "u50",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 5
+        },
+        {
+          "id": "u51",
+          "type": "orc",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 9
+        },
+        {
+          "id": "u52",
+          "type": "orc",
+          "side": "enemy",
+          "x": 4,
+          "y": 3,
+          "hp": 9
+        },
+        {
+          "id": "u53",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 0,
+          "y": 4,
+          "hp": 5
+        },
+        {
+          "id": "u54",
+          "type": "orc",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 9
+        },
+        {
+          "id": "u55",
+          "type": "orc",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 9
+        },
+        {
+          "id": "u56",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 3
+        },
+        {
+          "id": "u57",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u58",
+          "type": "mage",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u59",
+          "type": "hamster",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 3
+        }
+      ],
+      "chooseAI": {
+        "samples": 25,
+        "medianMs": 0.0368,
+        "p95Ms": 0.8029,
+        "maxMs": 1.1084
+      }
+    },
+    {
+      "floor": 5,
+      "seed": 1590317059,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "hamster",
+        "goblin",
+        "orc",
+        "orc",
+        "goblin",
+        "orc",
+        "orc",
+        "hamster",
+        "goblin",
+        "mage",
+        "hamster"
+      ],
+      "ended": "defeat",
+      "plies": 92,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 14,
+        "attack": 28,
+        "wait": 4,
+        "captures": 10,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 17,
+        "attack": 29,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 5,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 0,
+      "remainingEnemyUnits": 2,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u58",
+          "type": "mage",
+          "side": "enemy",
+          "x": 3,
+          "y": 4,
+          "hp": 2
+        }
+      ],
+      "chooseAI": {
+        "samples": 46,
+        "medianMs": 0.0351,
+        "p95Ms": 0.9412,
+        "maxMs": 2.2468
+      }
+    },
+    {
+      "floor": 10,
+      "seed": 1590317057,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "knight",
+        "goblin",
+        "knight",
+        "mage",
+        "slime",
+        "archer",
+        "dragon",
+        "orc",
+        "archer",
+        "mage",
+        "orc"
+      ],
+      "ended": "defeat",
+      "plies": 62,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 31,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 4,
+        "attack": 27,
+        "wait": 0,
+        "captures": 10,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 2,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u45",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u49",
+          "type": "knight",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u50",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 1,
+          "y": 2,
+          "hp": 5
+        },
+        {
+          "id": "u51",
+          "type": "knight",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 8
+        },
+        {
+          "id": "u52",
+          "type": "mage",
+          "side": "enemy",
+          "x": 3,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u53",
+          "type": "slime",
+          "side": "enemy",
+          "x": 4,
+          "y": 4,
+          "hp": 4
+        },
+        {
+          "id": "u54",
+          "type": "archer",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u55",
+          "type": "dragon",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 12
+        },
+        {
+          "id": "u56",
+          "type": "orc",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 9
+        },
+        {
+          "id": "u57",
+          "type": "archer",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u58",
+          "type": "mage",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u59",
+          "type": "orc",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 9
+        }
+      ],
+      "chooseAI": {
+        "samples": 31,
+        "medianMs": 0.0262,
+        "p95Ms": 0.9738,
+        "maxMs": 1.3004
+      }
+    },
+    {
+      "floor": 10,
+      "seed": 1590317057,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "knight",
+        "goblin",
+        "knight",
+        "mage",
+        "slime",
+        "archer",
+        "dragon",
+        "orc",
+        "archer",
+        "mage",
+        "orc"
+      ],
+      "ended": "defeat",
+      "plies": 84,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 11,
+        "attack": 27,
+        "wait": 4,
+        "captures": 8,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 15,
+        "attack": 27,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 7,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 0,
+      "remainingEnemyUnits": 4,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u56",
+          "type": "orc",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u58",
+          "type": "mage",
+          "side": "enemy",
+          "x": 2,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u59",
+          "type": "orc",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 9
+        }
+      ],
+      "chooseAI": {
+        "samples": 42,
+        "medianMs": 0.0435,
+        "p95Ms": 0.9971,
+        "maxMs": 1.2816
+      }
+    },
+    {
+      "floor": 10,
+      "seed": 1590317058,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "knight",
+        "archer",
+        "goblin",
+        "mage",
+        "orc",
+        "slime",
+        "knight",
+        "knight",
+        "golem",
+        "mage",
+        "slime"
+      ],
+      "ended": "defeat",
+      "plies": 52,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 26,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 2,
+        "attack": 24,
+        "wait": 0,
+        "captures": 10,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 2,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u45",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u49",
+          "type": "knight",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u50",
+          "type": "archer",
+          "side": "enemy",
+          "x": 4,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u51",
+          "type": "goblin",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 5
+        },
+        {
+          "id": "u52",
+          "type": "mage",
+          "side": "enemy",
+          "x": 2,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u53",
+          "type": "orc",
+          "side": "enemy",
+          "x": 4,
+          "y": 4,
+          "hp": 9
+        },
+        {
+          "id": "u54",
+          "type": "slime",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u55",
+          "type": "knight",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 8
+        },
+        {
+          "id": "u56",
+          "type": "knight",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u57",
+          "type": "golem",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 14
+        },
+        {
+          "id": "u58",
+          "type": "mage",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u59",
+          "type": "slime",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 4
+        }
+      ],
+      "chooseAI": {
+        "samples": 26,
+        "medianMs": 0.0331,
+        "p95Ms": 0.8403,
+        "maxMs": 1.327
+      }
+    },
+    {
+      "floor": 10,
+      "seed": 1590317058,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "knight",
+        "archer",
+        "goblin",
+        "mage",
+        "orc",
+        "slime",
+        "knight",
+        "knight",
+        "golem",
+        "mage",
+        "slime"
+      ],
+      "ended": "clear",
+      "plies": 131,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 21,
+        "attack": 45,
+        "wait": 0,
+        "captures": 12,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 34,
+        "attack": 30,
+        "wait": 1,
+        "captures": 10,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 19,
+      "longestEnemyWaitStreak": 1,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 2,
+      "remainingEnemyUnits": 0,
+      "rewardsCommitted": 11,
+      "finalUnits": [
+        {
+          "id": "u36",
+          "type": "king",
+          "side": "player",
+          "x": 0,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 5,
+          "y": 2,
+          "hp": 5
+        }
+      ],
+      "chooseAI": {
+        "samples": 65,
+        "medianMs": 0.0691,
+        "p95Ms": 0.9248,
+        "maxMs": 1.5196
+      }
+    },
+    {
+      "floor": 10,
+      "seed": 1590317059,
+      "policy": "wait-only",
+      "initialEnemyTypes": [
+        "king",
+        "knight",
+        "archer",
+        "mage",
+        "mage",
+        "archer",
+        "mage",
+        "mage",
+        "knight",
+        "archer",
+        "golem",
+        "knight"
+      ],
+      "ended": "defeat",
+      "plies": 48,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 0,
+        "attack": 0,
+        "wait": 24,
+        "captures": 0,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 2,
+        "attack": 22,
+        "wait": 0,
+        "captures": 10,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 3,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 2,
+      "remainingEnemyUnits": 12,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u44",
+          "type": "archer",
+          "side": "player",
+          "x": 0,
+          "y": 0,
+          "hp": 5
+        },
+        {
+          "id": "u45",
+          "type": "slime",
+          "side": "player",
+          "x": 0,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u49",
+          "type": "knight",
+          "side": "enemy",
+          "x": 4,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u50",
+          "type": "archer",
+          "side": "enemy",
+          "x": 4,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u51",
+          "type": "mage",
+          "side": "enemy",
+          "x": 4,
+          "y": 2,
+          "hp": 4
+        },
+        {
+          "id": "u52",
+          "type": "mage",
+          "side": "enemy",
+          "x": 2,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u53",
+          "type": "archer",
+          "side": "enemy",
+          "x": 4,
+          "y": 4,
+          "hp": 5
+        },
+        {
+          "id": "u54",
+          "type": "mage",
+          "side": "enemy",
+          "x": 5,
+          "y": 1,
+          "hp": 4
+        },
+        {
+          "id": "u55",
+          "type": "mage",
+          "side": "enemy",
+          "x": 5,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u56",
+          "type": "knight",
+          "side": "enemy",
+          "x": 6,
+          "y": 0,
+          "hp": 8
+        },
+        {
+          "id": "u57",
+          "type": "archer",
+          "side": "enemy",
+          "x": 6,
+          "y": 1,
+          "hp": 5
+        },
+        {
+          "id": "u58",
+          "type": "golem",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 14
+        },
+        {
+          "id": "u59",
+          "type": "knight",
+          "side": "enemy",
+          "x": 6,
+          "y": 4,
+          "hp": 8
+        }
+      ],
+      "chooseAI": {
+        "samples": 24,
+        "medianMs": 0.0307,
+        "p95Ms": 0.663,
+        "maxMs": 0.8392
+      }
+    },
+    {
+      "floor": 10,
+      "seed": 1590317059,
+      "policy": "mirrored-ai",
+      "initialEnemyTypes": [
+        "king",
+        "knight",
+        "archer",
+        "mage",
+        "mage",
+        "archer",
+        "mage",
+        "mage",
+        "knight",
+        "archer",
+        "golem",
+        "knight"
+      ],
+      "ended": "defeat",
+      "plies": 86,
+      "invalidActions": 0,
+      "invalidBoardStates": 0,
+      "player": {
+        "move": 14,
+        "attack": 29,
+        "wait": 0,
+        "captures": 9,
+        "reversals": 0
+      },
+      "enemy": {
+        "move": 17,
+        "attack": 26,
+        "wait": 0,
+        "captures": 11,
+        "reversals": 0
+      },
+      "longestNoDamagePlies": 5,
+      "longestEnemyWaitStreak": 0,
+      "repeatedLayoutAndHp": 0,
+      "maxLayoutAndHpVisits": 1,
+      "endingNoDamagePlies": 0,
+      "remainingPlayerUnits": 1,
+      "remainingEnemyUnits": 3,
+      "rewardsCommitted": 0,
+      "finalUnits": [
+        {
+          "id": "u47",
+          "type": "slime",
+          "side": "player",
+          "x": 3,
+          "y": 3,
+          "hp": 4
+        },
+        {
+          "id": "u48",
+          "type": "king",
+          "side": "enemy",
+          "x": 6,
+          "y": 2,
+          "hp": 12
+        },
+        {
+          "id": "u57",
+          "type": "archer",
+          "side": "enemy",
+          "x": 3,
+          "y": 2,
+          "hp": 3
+        },
+        {
+          "id": "u58",
+          "type": "golem",
+          "side": "enemy",
+          "x": 6,
+          "y": 3,
+          "hp": 14
+        }
+      ],
+      "chooseAI": {
+        "samples": 43,
+        "medianMs": 0.0374,
+        "p95Ms": 0.7217,
+        "maxMs": 0.729
+      }
+    }
+  ]
+}

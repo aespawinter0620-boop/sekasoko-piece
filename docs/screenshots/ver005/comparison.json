@@ -1,0 +1,498 @@
+[
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "old": {
+      "width": 339.984375,
+      "height": 218.546875
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        390,
+        844
+      ],
+      "board": {
+        "x": 24,
+        "y": 381.09375,
+        "width": 342,
+        "height": 430.90625,
+        "top": 381.09375,
+        "right": 366,
+        "bottom": 812,
+        "left": 24
+      },
+      "frame": {
+        "x": 14,
+        "y": 371.09375,
+        "width": 362,
+        "height": 450.90625,
+        "top": 371.09375,
+        "right": 376,
+        "bottom": 822,
+        "left": 14
+      },
+      "hud": {
+        "x": 14,
+        "y": 8,
+        "width": 362,
+        "height": 61,
+        "top": 8,
+        "right": 376,
+        "bottom": 69,
+        "left": 14
+      },
+      "status": {
+        "x": 14,
+        "y": 77,
+        "width": 362,
+        "height": 177.59375,
+        "top": 77,
+        "right": 376,
+        "bottom": 254.59375,
+        "left": 14
+      },
+      "cell": [
+        68.390625,
+        61.546875
+      ]
+    },
+    "areaGrowth": 1.9833773085328659
+  },
+  {
+    "viewport": {
+      "width": 375,
+      "height": 667
+    },
+    "old": {
+      "width": 324.984375,
+      "height": 208.90625
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        375,
+        667
+      ],
+      "board": {
+        "x": 33.9296875,
+        "y": 248.015625,
+        "width": 307.140625,
+        "height": 386.984375,
+        "top": 248.015625,
+        "right": 341.0703125,
+        "bottom": 635,
+        "left": 33.9296875
+      },
+      "frame": {
+        "x": 23.9296875,
+        "y": 238.015625,
+        "width": 327.140625,
+        "height": 406.984375,
+        "top": 238.015625,
+        "right": 351.0703125,
+        "bottom": 645,
+        "left": 23.9296875
+      },
+      "hud": {
+        "x": 14,
+        "y": 8,
+        "width": 347,
+        "height": 61,
+        "top": 8,
+        "right": 361,
+        "bottom": 69,
+        "left": 14
+      },
+      "status": {
+        "x": 14,
+        "y": 77,
+        "width": 347,
+        "height": 151,
+        "top": 77,
+        "right": 361,
+        "bottom": 228,
+        "left": 14
+      },
+      "cell": [
+        61.421875,
+        55.28125
+      ]
+    },
+    "areaGrowth": 1.750720348840199
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 568
+    },
+    "old": {
+      "width": 280,
+      "height": 180
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        320,
+        568
+      ],
+      "board": {
+        "x": 42.546875,
+        "y": 243.03125,
+        "width": 234.90625,
+        "height": 295.96875,
+        "top": 243.03125,
+        "right": 277.453125,
+        "bottom": 539,
+        "left": 42.546875
+      },
+      "frame": {
+        "x": 33.546875,
+        "y": 234.03125,
+        "width": 252.90625,
+        "height": 313.96875,
+        "top": 234.03125,
+        "right": 286.453125,
+        "bottom": 548,
+        "left": 33.546875
+      },
+      "hud": {
+        "x": 11,
+        "y": 6,
+        "width": 298,
+        "height": 57,
+        "top": 6,
+        "right": 309,
+        "bottom": 63,
+        "left": 11
+      },
+      "status": {
+        "x": 11,
+        "y": 70,
+        "width": 298,
+        "height": 156,
+        "top": 70,
+        "right": 309,
+        "bottom": 226,
+        "left": 11
+      },
+      "cell": [
+        46.96875,
+        42.28125
+      ]
+    },
+    "areaGrowth": 1.3794624837239584
+  },
+  {
+    "viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "old": {
+      "width": 437.109375,
+      "height": 280.984375
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        844,
+        390
+      ],
+      "board": {
+        "x": 27,
+        "y": 17,
+        "width": 532,
+        "height": 342,
+        "top": 17,
+        "right": 559,
+        "bottom": 359,
+        "left": 27
+      },
+      "frame": {
+        "x": 17,
+        "y": 7,
+        "width": 552,
+        "height": 362,
+        "top": 7,
+        "right": 569,
+        "bottom": 369,
+        "left": 17
+      },
+      "hud": {
+        "x": 582,
+        "y": 7,
+        "width": 245,
+        "height": 91,
+        "top": 7,
+        "right": 827,
+        "bottom": 98,
+        "left": 582
+      },
+      "status": {
+        "x": 582,
+        "y": 106,
+        "width": 245,
+        "height": 271,
+        "top": 106,
+        "right": 827,
+        "bottom": 377,
+        "left": 582
+      },
+      "cell": [
+        76,
+        68.390625
+      ]
+    },
+    "areaGrowth": 1.4813764861928729
+  },
+  {
+    "viewport": {
+      "width": 667,
+      "height": 375
+    },
+    "old": {
+      "width": 390,
+      "height": 250.703125
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        667,
+        375
+      ],
+      "board": {
+        "x": 27,
+        "y": 80.4375,
+        "width": 410,
+        "height": 263.5625,
+        "top": 80.4375,
+        "right": 437,
+        "bottom": 344,
+        "left": 27
+      },
+      "frame": {
+        "x": 17,
+        "y": 70.4375,
+        "width": 430,
+        "height": 283.5625,
+        "top": 70.4375,
+        "right": 447,
+        "bottom": 354,
+        "left": 17
+      },
+      "hud": {
+        "x": 460,
+        "y": 7,
+        "width": 190,
+        "height": 91,
+        "top": 7,
+        "right": 650,
+        "bottom": 98,
+        "left": 460
+      },
+      "status": {
+        "x": 460,
+        "y": 106,
+        "width": 190,
+        "height": 256,
+        "top": 106,
+        "right": 650,
+        "bottom": 362,
+        "left": 460
+      },
+      "cell": [
+        58.5625,
+        52.703125
+      ]
+    },
+    "areaGrowth": 1.1052057115005074
+  },
+  {
+    "viewport": {
+      "width": 812,
+      "height": 375
+    },
+    "old": {
+      "width": 413.765625,
+      "height": 265.984375
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        812,
+        375
+      ],
+      "board": {
+        "x": 27,
+        "y": 17.015625,
+        "width": 508.65625,
+        "height": 326.984375,
+        "top": 17.015625,
+        "right": 535.65625,
+        "bottom": 344,
+        "left": 27
+      },
+      "frame": {
+        "x": 17,
+        "y": 7.015625,
+        "width": 528.65625,
+        "height": 346.984375,
+        "top": 7.015625,
+        "right": 545.65625,
+        "bottom": 354,
+        "left": 17
+      },
+      "hud": {
+        "x": 558.65625,
+        "y": 7,
+        "width": 236.34375,
+        "height": 91,
+        "top": 7,
+        "right": 795,
+        "bottom": 98,
+        "left": 558.65625
+      },
+      "status": {
+        "x": 558.65625,
+        "y": 106,
+        "width": 236.34375,
+        "height": 256,
+        "top": 106,
+        "right": 795,
+        "bottom": 362,
+        "left": 558.65625
+      },
+      "cell": [
+        72.65625,
+        65.390625
+      ]
+    },
+    "areaGrowth": 1.5112657952781472
+  },
+  {
+    "viewport": {
+      "width": 844,
+      "height": 330
+    },
+    "old": {
+      "width": 365.546875,
+      "height": 234.984375
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        844,
+        330
+      ],
+      "board": {
+        "x": 23,
+        "y": 14.015625,
+        "width": 446.4375,
+        "height": 286.984375,
+        "top": 14.015625,
+        "right": 469.4375,
+        "bottom": 301,
+        "left": 23
+      },
+      "frame": {
+        "x": 14,
+        "y": 5.015625,
+        "width": 464.4375,
+        "height": 304.984375,
+        "top": 5.015625,
+        "right": 478.4375,
+        "bottom": 310,
+        "left": 14
+      },
+      "hud": {
+        "x": 488.4375,
+        "y": 5,
+        "width": 341.5625,
+        "height": 81,
+        "top": 5,
+        "right": 830,
+        "bottom": 86,
+        "left": 488.4375
+      },
+      "status": {
+        "x": 488.4375,
+        "y": 92,
+        "width": 341.5625,
+        "height": 226,
+        "top": 92,
+        "right": 830,
+        "bottom": 318,
+        "left": 488.4375
+      },
+      "cell": [
+        63.765625,
+        57.390625
+      ]
+    },
+    "areaGrowth": 1.4915467103334281
+  },
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "old": {
+      "width": 1043,
+      "height": 670.5
+    },
+    "actual": {
+      "issues": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "board": {
+        "x": 27,
+        "y": 266.359375,
+        "width": 1093,
+        "height": 702.640625,
+        "top": 266.359375,
+        "right": 1120,
+        "bottom": 969,
+        "left": 27
+      },
+      "frame": {
+        "x": 17,
+        "y": 256.359375,
+        "width": 1113,
+        "height": 722.640625,
+        "top": 256.359375,
+        "right": 1130,
+        "bottom": 979,
+        "left": 17
+      },
+      "hud": {
+        "x": 1143,
+        "y": 7,
+        "width": 280,
+        "height": 91,
+        "top": 7,
+        "right": 1423,
+        "bottom": 98,
+        "left": 1143
+      },
+      "status": {
+        "x": 1143,
+        "y": 106,
+        "width": 280,
+        "height": 881,
+        "top": 106,
+        "right": 1423,
+        "bottom": 987,
+        "left": 1143
+      },
+      "cell": [
+        156.140625,
+        140.515625
+      ]
+    },
+    "areaGrowth": 1.098171901487349
+  }
+]
