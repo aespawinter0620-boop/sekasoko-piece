@@ -32,7 +32,8 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
    text:await page.locator('#inspectorBody').textContent(),
    selection:await page.locator('.unit.is-selected').getAttribute('data-unit-id'),
    moves:await page.locator('.cell.legal').evaluateAll(es=>es.map(e=>`${e.dataset.x},${e.dataset.y}`).sort()),
-   targets:await page.locator('.unit.is-target').evaluateAll(es=>es.map(e=>e.dataset.unitId).sort())
+   targets:await page.locator('.unit.is-target').evaluateAll(es=>es.map(e=>e.dataset.unitId).sort()),
+   attackMode:await page.locator('#normalAttackBtn').getAttribute('aria-pressed')
  };}
  async function fixture(){
    await page.evaluate(()=>{
@@ -43,43 +44,49 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      s.log.unshift('回転検証：獲得候補と残りHPを保持。');
    });
  }
+ async function boardRect(){return await page.locator('#board').evaluate(e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};});}
+ async function fixed(before){assert.deepEqual(await boardRect(),before,'board position and size must be independent of UI content');}
  async function assertLayout(bottomInset=0){
    const report=await page.evaluate(bottomInset=>{
-     const issues=[];const b=document.querySelector('#board').getBoundingClientRect();
-     const rect=e=>e.getBoundingClientRect();
-     const inside=r=>r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1;
-     const cells=[...document.querySelectorAll('.cell')];
+     const issues=[],b=document.querySelector('#board').getBoundingClientRect();
+     const rect=e=>e.getBoundingClientRect(),inside=r=>r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1;
+     const contained=(r,c)=>r.left>=c.left-1&&r.top>=c.top-1&&r.right<=c.right+1&&r.bottom<=c.bottom+1;
+     const cells=[...document.querySelectorAll('.cell')],units=Sekasoko.inspect().units;
      if(document.documentElement.scrollWidth>innerWidth+1)issues.push('horizontal document overflow');
-     if(!inside(b))issues.push(`board outside viewport ${JSON.stringify(b.toJSON())}`);
-     if(b.bottom>innerHeight-bottomInset+1)issues.push('board overlaps the bottom safe area');
-     if(innerHeight-b.bottom>48+bottomInset)issues.push(`board is not bottom anchored (${innerHeight-b.bottom}px gap)`);
+     if(!inside(b)||b.bottom>innerHeight-bottomInset+1)issues.push('board outside unobscured viewport');
      if(cells.length!==35)issues.push(`cell count ${cells.length}`);
      const first=rect(cells[0]);
-     if(first.height>=first.width)issues.push(`cells are not vertically compressed (${first.width}×${first.height})`);
+     if(Math.abs(first.height/first.width-.90)>.002)issues.push(`cell H/W must equal .90 (${first.width}×${first.height})`);
      for(const cell of cells){
        const r=rect(cell),x=+cell.dataset.x,y=+cell.dataset.y;
        if(Math.abs(r.width-first.width)>1||Math.abs(r.height-first.height)>1)issues.push(`unequal cell ${x},${y}`);
        if(Math.abs(r.left-(first.left+x*first.width))>1||Math.abs(r.top-(first.top+y*first.height))>1)issues.push(`misaligned cell ${x},${y}`);
-       const cx=r.left+r.width/2,cy=r.top+r.height/2;
-       if(cx<0||cx>innerWidth||cy<0||cy>innerHeight)issues.push(`cell center outside viewport ${x},${y}`);
-       const occupied=Sekasoko.inspect().units.find(u=>u.x===x&&u.y===y);
-       const hit=document.elementFromPoint(cx,cy);
-       if(occupied ? hit?.closest('[data-unit-id]')?.dataset.unitId!==occupied.id : hit?.closest('.cell')!==cell)issues.push(`wrong hit layer at ${x},${y}`);
+       const cx=r.left+r.width/2,cy=r.top+r.height/2;if(!inside(r))issues.push(`cell outside viewport ${x},${y}`);
+       const occupied=units.find(u=>u.x===x&&u.y===y),hit=document.elementFromPoint(cx,cy);
+       if(occupied?hit?.closest('[data-unit-id]')?.dataset.unitId!==occupied.id:hit?.closest('.cell')!==cell)issues.push(`wrong hit layer ${x},${y}`);
      }
-     for(const selector of ['.topbar','#floorNum','#turnNum','#phaseBadge','#inspectorBody','#lootList','#logList','#waitBtn']){
-       const e=document.querySelector(selector),r=rect(e);
-       if(!e.checkVisibility()||r.width<=0||r.height<=0)issues.push(`hidden information ${selector}`);
-       if(!inside(r))issues.push(`information outside viewport ${selector}`);
-       if(r.bottom>b.top+1)issues.push(`information below board ${selector}`);
+     for(const selector of ['.topbar','#floorNum','#turnNum','#phaseBadge','#waitBtn']){
+       const e=document.querySelector(selector),r=rect(e);if(!e.checkVisibility()||!inside(r)||r.bottom>b.top+1)issues.push(`header not above visible board ${selector}`);
      }
+     const status=rect(document.querySelector('.inspector'));
+     if(!inside(status))issues.push('status panel outside viewport');
+     if(innerWidth>innerHeight ? status.left<b.right-1 : status.bottom>b.top+1)issues.push('status is not above portrait / right of landscape board');
+     const body=document.querySelector('#inspectorBody'),bodyRect=rect(body),hasSelection=!!document.querySelector('.unit.is-selected');
+     if(hasSelection?(!body.checkVisibility({checkVisibilityCSS:true})||!inside(bodyRect)||!contained(bodyRect,status)):body.checkVisibility({checkVisibilityCSS:true}))issues.push('selected details visibility does not match selection');
+     const ink=[];const intersects=(a,b)=>a.left<b.right-.1&&b.left<a.right-.1&&a.top<b.bottom-.1&&b.top<a.bottom-.1;
      for(const e of document.querySelectorAll('[data-unit-id]')){
-       const r=rect(e),hp=e.querySelector('.hp'),h=rect(hp),cx=r.left+r.width/2,cy=r.top+r.height/2;
-       if(!inside(r)||!hp.checkVisibility()||!inside(h)||!/^\d+$/.test(hp.textContent))issues.push(`unit/HP not visible ${e.dataset.unitId}`);
-       if(document.elementFromPoint(cx,cy)?.closest('[data-unit-id]')!==e)issues.push(`unit center blocked ${e.dataset.unitId}`);
+       const u=units.find(u=>u.id===e.dataset.unitId),cell=document.querySelector(`.cell[data-x="${u.x}"][data-y="${u.y}"]`),c=rect(cell),r=rect(e),token=rect(e.querySelector('.token')),hp=e.querySelector('.hp'),h=rect(hp);
+       if(!inside(r)||!hp.checkVisibility()||!inside(h)||!/^\d+$/.test(hp.textContent))issues.push(`unit/HP not visible ${u.id}`);
+       if(!contained(r,c)||!contained(token,c)||!contained(h,c))issues.push(`piece or HP overlaps another cell ${u.id}`);
+       for(const p of [r,h])if(document.elementFromPoint(p.left+p.width/2,p.top+p.height/2)?.closest('[data-unit-id]')!==e)issues.push(`unit/HP center blocked ${u.id}`);
+       const textRect=node=>{const range=document.createRange();range.selectNodeContents(node);return range.getBoundingClientRect();};
+       const nameInk=textRect(e.querySelector('.unit-name')),hpInk=textRect(hp);
+       if(intersects(nameInk,hpInk))issues.push(`name and HP text overlap ${u.id}`);
+       ink.push({id:u.id,rects:[nameInk,hpInk]});
      }
-     return {issues,viewport:[innerWidth,innerHeight],board:b.toJSON(),cell:[first.width,first.height]};
-   },bottomInset);
-   assert.deepEqual(report.issues,[],JSON.stringify(report));
+     for(let i=0;i<ink.length;i++)for(let j=i+1;j<ink.length;j++)if(ink[i].rects.some(a=>ink[j].rects.some(b=>intersects(a,b))))issues.push(`adjacent name/HP text overlap ${ink[i].id}/${ink[j].id}`);
+     return{issues,viewport:[innerWidth,innerHeight],board:b.toJSON(),cell:[first.width,first.height]};
+   },bottomInset);assert.deepEqual(report.issues,[],JSON.stringify(report));
  }
  async function assertCTA(selector){
    const button=page.locator(selector);await button.scrollIntoViewIfNeeded();
@@ -105,9 +112,16 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
    await page.locator(`[data-unit-id="${id}"]`).click();
  }
  try{
-   for(const viewport of viewports)await check(`${viewport.width}×${viewport.height}: all information above the visible 7×5 board, HP and hit targets`,async()=>{
-     await load(viewport);await select();await assertLayout();
+   for(const viewport of viewports)await check(`${viewport.width}×${viewport.height}: .90 cells, visible HP/hit targets, portrait-above or landscape-right status and invariant board`,async()=>{
+     await load(viewport);const b=await boardRect();await select();await assertLayout();await fixed(b);
+     const enemy=await page.evaluate(()=>__qaState.units.find(u=>u.type==='goblin'&&u.side==='enemy').id);await page.locator(`[data-unit-id="${enemy}"]`).click();await fixed(b);await assertLayout();
+     await page.locator(`[data-unit-id="${enemy}"]`).click();await fixed(b);await assertLayout();
+     await page.evaluate(()=>{const a=__qaState.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;});await select('archer');await page.locator('#normalAttackBtn').click();await fixed(b);await assertLayout();
+     await page.locator('#cancelAttackBtn').click();await fixed(b);
+     await page.locator('#logBtn').click();await fixed(b);await page.keyboard.press('Escape');await fixed(b);
+     await page.locator('#menuBtn').click();await fixed(b);await page.locator('#closeMenuBtn').click();await fixed(b);
      await page.screenshot({path:path.join(artifacts,`${viewport.width}x${viewport.height}.png`)});
+     const before=await snapshot();await page.locator('.cell[data-x="3"][data-y="3"]').click();await ready();assert.equal((await snapshot()).totalActions,before.totalActions+2);await fixed(b);await assertLayout();
    });
    await check('Portrait→landscape→portrait retains selected stats, exact highlights, damaged HP, candidates and full state',async()=>{
      await load();await fixture();await select();
@@ -116,7 +130,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      for(const viewport of [LANDSCAPE,PORTRAIT]){
        await page.setViewportSize(viewport);await assertLayout();
        assert.deepEqual(await snapshot(),before);assert.deepEqual(await selectedPresentation(),presentation);
-       assert.equal(await page.locator('#lootList .loot-chip').count(),3);
+       assert.deepEqual((await snapshot()).candidates,['slime','goblin','slime']);
      }
    });
    await check('Ranged red targets survive rotation and a real target click deals damage followed by one AI response',async()=>{
@@ -124,7 +138,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        const s=__qaState,a=s.units.find(u=>u.side==='player'&&u.type==='archer');a.x=3;a.y=2;
        const target=s.units.find(u=>u.side==='enemy'&&u.type==='slime');target.x=4;target.y=2;
      });
-     const archer=await select('archer'),before=await snapshot(),presentation=await selectedPresentation();
+     const archer=await select('archer');await page.locator('#normalAttackBtn').click();const before=await snapshot(),presentation=await selectedPresentation();assert.equal(presentation.attackMode,'true');
      assert.ok(presentation.targets.length>0,'ranged fixture must expose red enemy targets');
      assert.ok(await page.locator('.cell.attackable').count()>0);
      for(const viewport of [LANDSCAPE,PORTRAIT]){
@@ -169,14 +183,14 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      assert.deepEqual(await perform(true),await perform(false));await assertLayout();
    });
    await check('Help dialog survives both orientations and its return CTA remains scroll accessible',async()=>{
-     await load();await page.locator('#helpBtn').click();assert.equal(await page.locator('.master-table tbody tr').count(),10);
+     await load();await page.locator('#menuBtn').click();await page.locator('#helpBtn').click();assert.equal(await page.locator('.master-table tbody tr').count(),10);
      await rotateModal('#backToBoardBtn');await page.locator('#backToBoardBtn').click();assert.equal(await page.locator('#overlay').isVisible(),false);
    });
    await check('Large acquired-piece formation survives rotation and its next-floor CTA deploys the chosen team',async()=>{
      await load();await page.evaluate(()=>{
        for(let i=0;i<12;i++)__qaState.roster.push({id:`qa-spare-${i}`,type:i%2?'slime':'goblin'});
      });
-     await attackKing();await page.waitForSelector('#nextFloorBtn');
+     await attackKing();await page.waitForSelector('#nextFloorBtn');const inventory=(await snapshot()).roster.length;await rotateModal('#nextFloorBtn');assert.equal((await snapshot()).roster.length,inventory);
      assert.equal((await snapshot()).phase,'victory');await rotateModal('#nextFloorBtn');
      await page.locator('#nextFloorBtn').click();await ready();assert.equal((await snapshot()).floor,2);await assertLayout();
    });
@@ -199,7 +213,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        const report=await page.evaluate(()=>{
          const probe=document.createElement('div');probe.style.cssText='position:fixed;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';document.body.appendChild(probe);
          const c=getComputedStyle(probe),insets=[c.paddingTop,c.paddingRight,c.paddingBottom,c.paddingLeft];probe.remove();
-         const selectors=['.topbar','#board','#inspectorBody','#lootList','#logList','#waitBtn','[data-unit-id] .hp'];
+         const selectors=['.topbar','#board','#inspectorBody','#waitBtn','[data-unit-id] .hp'];
          const violations=selectors.flatMap(selector=>[...document.querySelectorAll(selector)].filter(e=>{
            const r=e.getBoundingClientRect();return r.left<46||r.right>innerWidth-46||r.bottom>innerHeight-20||r.top<0;
          }).map(()=>selector));
@@ -208,6 +222,40 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        assert.deepEqual(report.insets,['0px','47px','21px','47px']);assert.deepEqual(report.violations,[]);
        await assertLayout(21);assert.deepEqual(await snapshot(),before);
        await page.screenshot({path:path.join(artifacts,'844x390-safe-area.png')});
+     }finally{await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:{top:0,left:0,bottom:0,right:0}});await cdp.detach();}
+   });
+   await check('Dense 3×3 pieces and HP badges remain separate and individually clickable in both orientations',async()=>{
+     for(const viewport of [PORTRAIT,LANDSCAPE]){
+       await load(viewport);await page.evaluate(()=>{
+         const s=__qaState;s.units.push({id:'qa-dense-mage',type:'mage',side:'enemy',x:0,y:0,hp:4,maxHp:4});
+         s.units.forEach((u,i)=>{u.x=2+i%3;u.y=1+Math.floor(i/3);});
+       });
+       const first=(await snapshot()).units[0].id;await page.locator(`[data-unit-id="${first}"]`).click();await page.locator(`[data-unit-id="${first}"]`).click();
+       const before=await snapshot(),b=await boardRect();await assertLayout();
+       for(const u of before.units){
+         const token=page.locator(`[data-unit-id="${u.id}"]`),hp=token.locator('.hp');
+         await token.click();assert.equal(await token.getAttribute('aria-pressed'),'true');await token.click();
+         await hp.click();assert.equal(await token.getAttribute('aria-pressed'),'true');await hp.click();
+         await fixed(b);assert.deepEqual(await snapshot(),before);
+       }
+       await page.screenshot({path:path.join(artifacts,`dense-${viewport.width}x${viewport.height}.png`)});
+     }
+   });
+   await check('Acquisition popup does not resize either orientation and leaves board controls usable',async()=>{
+     for(const viewport of [PORTRAIT,LANDSCAPE]){
+       await load(viewport);await page.evaluate(()=>{const a=__qaState.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;const e=__qaState.units.find(u=>u.type==='slime'&&u.side==='enemy');e.x=4;e.y=2;e.hp=1;});
+       await select('archer');const b=await boardRect(),enemy=await page.evaluate(()=>__qaState.units.find(u=>u.type==='slime'&&u.side==='enemy').id);
+       await page.locator(`[data-unit-id="${enemy}"]`).click();await ready();await fixed(b);assert.match(await page.locator('#toast').textContent(),/駒入手！/);await assertLayout();
+       await select();await fixed(b);assert.equal(await page.locator('.unit.is-selected').count(),1);
+       const before=await snapshot();await page.locator('#waitBtn').click();await ready();assert.equal((await snapshot()).totalActions,before.totalActions+2);await fixed(b);
+     }
+   });
+   await check('Portrait top-notch and home-indicator safe areas preserve .90 board geometry and status controls',async()=>{
+     await load();await select();const before=await snapshot(),cdp=await page.context().newCDPSession(page);
+     try{
+       await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:{top:44,left:0,bottom:34,right:0}});
+       const violations=await page.evaluate(()=>['.topbar','#board','#inspectorBody','#waitBtn','[data-unit-id] .hp'].flatMap(selector=>[...document.querySelectorAll(selector)].filter(e=>{const r=e.getBoundingClientRect();return r.top<43||r.bottom>innerHeight-33;}).map(()=>selector)));
+       assert.deepEqual(violations,[]);await assertLayout(34);assert.deepEqual(await snapshot(),before);await page.screenshot({path:path.join(artifacts,'390x844-safe-area.png')});
      }finally{await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:{top:0,left:0,bottom:0,right:0}});await cdp.detach();}
    });
    await check('Responsive and rotation flows produce no browser errors or external requests',async()=>{

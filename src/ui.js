@@ -8,6 +8,7 @@ const names = ['はじまりの回廊','苔むした階段','忘れられた門'
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let state = Engine.createRun(), selectedId = null, busy = false, generation = 0;
 let modalMode = '', returnFocus = null, toastTimer;
+let attackMode = false;
 const unitElements = new Map();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const find = id => state.units.find(u => u.id === id);
@@ -16,8 +17,29 @@ function toast(message) {
   $('toast').textContent = message; $('toast').classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2300);
 }
+function closeFlyouts() {
+  for (const name of ['menu','log']) {
+    $(name+'Panel').hidden=true;
+    $(name+'Btn').setAttribute('aria-expanded','false');
+  }
+}
+function toggleFlyout(name) {
+  if(!overlay.hidden)return;
+  const opening=$(name+'Panel').hidden;
+  closeFlyouts();
+  if(opening) {
+    $(name+'Panel').hidden=false;
+    $(name+'Btn').setAttribute('aria-expanded','true');
+    $(name==='menu'?'closeMenuBtn':'closeLogBtn').focus();
+  }
+}
 function openModal(mode, html) {
-  if (overlay.hidden) returnFocus = document.activeElement;
+  if (overlay.hidden) {
+    const source=document.activeElement;
+    returnFocus=source?.closest('#menuPanel')?$('menuBtn'):source?.closest('#logPanel')?$('logBtn'):source;
+  }
+  closeFlyouts();
+  clearTimeout(toastTimer);$('toast').classList.remove('show');
   modalMode = mode; modal.classList.toggle('formation-modal', mode === 'formation'); modal.innerHTML = html; overlay.hidden = false;
   document.body.style.overflow = 'hidden'; modal.focus();
 }
@@ -76,30 +98,36 @@ function paintUnits() {
   }
 }
 function paintInspector() {
-  const u=selected();
-  $('selectedMark').textContent=u?'選択中':'未選択';
-  if (!u) {
-    $('inspectorBody').innerHTML='<div class="portrait" aria-hidden="true">♟</div><div class="select-hint">駒をタップして<br>能力と行動範囲を見よう。</div>';
-    return;
-  }
-  const m=MASTER[u.type];
-  $('inspectorBody').innerHTML=`<div class="portrait" aria-hidden="true">${m.icon}</div><div><h2 class="unit-title">${m.name}</h2><div class="side-tag ${u.side}">${u.side==='player'?'YOUR COMPANION':'DEPTHS ENEMY'}${u.type==='king'?' · 王':''}</div></div><div class="stats"><div class="stat wide">HP <b>${u.hp} <small>/ ${u.maxHp}</small></b></div><div class="stat">攻撃 <b>${m.atk}</b></div><div class="stat">コスト <b>${m.cost}</b></div><div class="stat">移動 <b>${m.move}</b></div><div class="stat">射程 <b>${m.range}</b></div></div><div class="health-line"><i style="width:${u.hp/u.maxHp*100}%"></i></div>`;
+  const u=selected(), ally=u?.side==='player';
+  $('selectedMark').textContent=u?(ally?'味方':'敵'):'未選択';
+  $('inspectorBody').classList.toggle('unselected',!u);
+  $('inspectorBody').setAttribute('aria-hidden',u?'false':'true');
+  const m=u?MASTER[u.type]:null;
+  const stat=(label,value,wide=false)=>`<div class="stat ${wide?'wide':''}">${label}<b>${value}</b></div>`;
+  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${u.hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?u.hp/u.maxHp*100:0}%"></i></div>${stat('ATK',m?m.atk:'—')}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div>`;
+  const canAttack=ally&&!busy&&state.phase==='player'&&Engine.targets(state,u.id).length>0;
+  $('skillActions').classList.toggle('inactive',!ally);
+  $('skillActions').setAttribute('aria-hidden',ally?'false':'true');
+  $('skillActions').inert=!ally;
+  $('normalAttackBtn').disabled=!canAttack;
+  $('normalAttackBtn').setAttribute('aria-pressed',attackMode?'true':'false');
+  $('normalAttackBtn').querySelector('small').textContent=canAttack?'射程内の敵を選択':'射程内に敵がいない';
+  $('cancelAttackBtn').hidden=!attackMode;
+  $('inspector').classList.toggle('target-mode',attackMode);
+  board.dataset.attackMode=attackMode?'true':'false';
 }
+
 function render(skipUnits=false) {
-  if (!find(selectedId)) selectedId=null;
+  if (!find(selectedId)) {selectedId=null;attackMode=false;}
   $('floorNum').textContent=state.floor;$('floorTitle').textContent=names[state.floor-1];
-  $('storyNumber').textContent=String(state.floor).padStart(2,'0');
   $('turnNum').textContent=`TURN ${String(state.turn).padStart(2,'0')}`;
   $('phaseBadge').textContent=phaseLabel();$('phaseBadge').classList.toggle('enemy',state.phase==='enemy');
-  $('steps').innerHTML=Array.from({length:10},(_,i)=>`<i class="step ${i+1===state.floor?'current':i+1<state.floor?'done':''}"></i>`).join('');
   $('waitBtn').disabled=busy||state.phase!=='player';
   $('restartBtn').disabled=busy||state.phase==='enemy';
   const u=selected();
-  $('boardHint').textContent=busy?'一手の行方を見届けよう。':state.phase==='enemy'?'敵が次の一手を考えている…':state.phase!=='player'?'この階層の戦いは決着した。':u?(u.side==='enemy'?'敵の能力を確認中。味方を選んで行動。':'青へ移動 ／ 赤い敵を攻撃。1回で交代。'):'味方の駒をタップして、一手を選ぼう。';
-  const loot=state.phase==='victory'||state.phase==='clear'?state.lastRewards:state.candidates;
-  $('lootCount').textContent=`${loot.length} PIECES`;
-  $('lootList').innerHTML=loot.length?loot.map(type=>`<span class="loot-chip">${MASTER[type].icon} ${MASTER[type].name}</span>`).join(''):'<span class="empty-loot">敵の手駒を倒して、仲間の候補に。</span>';
-  $('logList').innerHTML=state.log.slice(0,3).map(text=>`<li>${text}</li>`).join('');
+  $('boardHint').dataset.mode=attackMode?'attack':'normal';
+  $('boardHint').textContent=busy?'一手の行方を見届けよう。':state.phase==='enemy'?'敵が次の一手を考えている…':state.phase!=='player'?'この階層の戦いは決着した。':attackMode?'赤い敵をタップして攻撃。':u?(u.side==='enemy'?'敵の能力を確認中。':'青へ移動 ／ 赤い敵を攻撃。'):'';
+  $('logList').innerHTML=state.log.map(text=>`<li>${text}</li>`).join('');
   if(!skipUnits) paintUnits(); paintInspector();paintHighlights();
 }
 function unitTap(id) {
@@ -109,7 +137,7 @@ function unitTap(id) {
   if (actor && actor.side==='player' && target.side==='enemy' && Engine.targets(state,actor.id).some(t=>t.id===id)) {
     doAction({type:'attack',unitId:actor.id,targetId:id});return;
   }
-  selectedId=selectedId===id?null:id;render();
+  attackMode=false;selectedId=selectedId===id?null:id;render();
 }
 function cellTap(x,y) {
   if(busy||!overlay.hidden||state.phase!=='player')return;
@@ -119,7 +147,7 @@ function cellTap(x,y) {
   if(actor&&actor.side==='player') {
     if(Engine.moves(state,actor.id).some(m=>m.x===x&&m.y===y)) doAction({type:'move',unitId:actor.id,x,y});
     else toast('青く光るマスへ移動できるよ。');
-  } else {selectedId=null;render();}
+  } else {attackMode=false;selectedId=null;render();}
 }
 async function animateEvents(events) {
   for(const e of events) {
@@ -148,14 +176,14 @@ async function animateEvents(events) {
         await el.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:230,fill:'forwards'}).finished;
       }
     }
-    if(e.type==='candidate') toast(`${MASTER[e.unitType].icon} ${MASTER[e.unitType].name}が獲得候補に！`);
+    if(e.type==='candidate') toast(`駒入手！ ${MASTER[e.unitType].icon} ${MASTER[e.unitType].name}（勝利で確定）`);
   }
 }
 async function doAction(action) {
   if(busy||!['player','enemy'].includes(state.phase))return;
   const token=generation;const result=Engine.act(state,action);
   if(!result.ok){toast(result.error);return;}
-  busy=true;render(true);
+  attackMode=false;busy=true;render(true);
   try {await animateEvents(result.events);} catch(error) {console.error(error);}
   if(token!==generation)return;
   busy=false;selectedId=null;render();
@@ -167,6 +195,21 @@ async function scheduleEnemy() {
   await sleep(reducedMotion?30:620);
   if(token===generation&&state.phase==='enemy'&&!busy)await doAction(Engine.chooseAI(state));
 }
+$('normalAttackBtn').addEventListener('click',()=>{
+  const u=selected();
+  if(busy||!overlay.hidden||state.phase!=='player'||u?.side!=='player'||!Engine.targets(state,u.id).length)return;
+  attackMode=true;render();
+});
+$('cancelAttackBtn').addEventListener('click',()=>{attackMode=false;render();});
+for(const name of ['menu','log']) {
+  $(name+'Btn').addEventListener('click',()=>toggleFlyout(name));
+  $('close'+(name==='menu'?'Menu':'Log')+'Btn').addEventListener('click',()=>{
+    closeFlyouts();$(name+'Btn').focus();
+  });
+}
+document.addEventListener('click',event=>{
+  if(!event.target.closest('.flyout,#menuBtn,#logBtn'))closeFlyouts();
+});
 $('waitBtn').addEventListener('click',()=>{
   if(busy||state.phase!=='player'||!overlay.hidden)return;
   const u=selected();doAction({type:'wait',...(u?.side==='player'?{unitId:u.id}:{})});
@@ -191,24 +234,24 @@ function showFormation() {
   }));
   $('nextFloorBtn').addEventListener('click',()=>{
     const result=Engine.advance(state);if(!result.ok){toast(result.error);return;}
-    selectedId=null;closeModal();render();toast(`${state.floor}Fへ。軍団のHPが全回復した！`);
+    attackMode=false;selectedId=null;closeModal();render();toast(`${state.floor}Fへ。軍団のHPが全回復した！`);
   });
 }
 function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.002 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.003 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
-  generation++;busy=false;selectedId=null;state=Engine.createRun();
+  generation++;busy=false;attackMode=false;selectedId=null;state=Engine.createRun();
   for(const el of unitElements.values())el.remove();unitElements.clear();
   board.querySelectorAll('.floating-damage').forEach(el=>el.remove());
   closeModal();render();toast('新しい探索が始まった。1Fから、もう一度！');
 }
 function showRules() {
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.002</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大3体、コスト合計10以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.003</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大3体、コスト合計10以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);
@@ -218,7 +261,14 @@ $('restartBtn').addEventListener('click',()=>{
   $('cancelRestartBtn').addEventListener('click',closeModal);$('confirmRestartBtn').addEventListener('click',resetRun);
 });
 document.addEventListener('keydown',event=>{
-  if(overlay.hidden)return;
+  if(overlay.hidden) {
+    if(event.key==='Escape') {
+      if(!$('menuPanel').hidden||!$('logPanel').hidden) {
+        const focus=$('menuPanel').hidden?'logBtn':'menuBtn';closeFlyouts();$(focus).focus();
+      } else if(attackMode) {attackMode=false;render();}
+    }
+    return;
+  }
   if(event.key==='Escape'&&['rules','restart'].includes(modalMode)) {closeModal();return;}
   if(event.key!=='Tab')return;
   const items=[...modal.querySelectorAll('button:not(:disabled),[tabindex="0"]')];
