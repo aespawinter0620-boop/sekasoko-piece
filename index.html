@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111d23">
-<title>セカソコ！～手駒編～ | VER.004</title>
+<title>セカソコ！～手駒編～ | VER.005</title>
 <style>
 :root{color-scheme:dark;--ink:#eee9dc;--muted:#9daeb2;--gold:#d6bb80;--line:#b5a87d38;--blue:#9bdaee;--red:#edb1a1;--panel:#17262c;--edge:14px;--frame:10px;--depth:8px;--gap:12px;--arena-label:21px;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans CJK JP","Hiragino Kaku Gothic ProN",sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:#101b20;color:var(--ink)}button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid var(--line);border-radius:6px;background:#24363c;padding:9px 14px}button:hover:not(:disabled){filter:brightness(1.12)}button:focus-visible{outline:2px solid #e6f9ff;outline-offset:2px}button:disabled{cursor:default;opacity:.5}[hidden]{display:none!important}.primary{background:linear-gradient(#e0c994,#bfa064);color:#1d292b;border-color:#ead3a4;font-weight:700;box-shadow:0 3px 12px #0004}.quiet{background:transparent;color:var(--muted)}h1,h2,h3,p{margin:0}.serif,h1,h2,h3{font-family:"Noto Serif CJK JP","Hiragino Mincho ProN","Yu Mincho",serif}.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--gold)}small{font-size:10px}
@@ -58,7 +58,7 @@
 <main class="battle-layout">
  <section class="command-region" id="commandRegion">
  <header class="topbar" id="hud">
- <div class="topline"><span class="version">VER.004</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
+ <div class="topline"><span class="version">VER.005</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
  <div class="journey"><div class="floor-line"><div class="floor-badge"><span id="floorNum">1</span><small> F</small></div><div class="floor-name"><b id="floorTitle">はじまりの回廊</b></div></div><div class="phase"><span class="turn" id="turnNum">TURN 01</span><span class="phase-pill" id="phaseBadge" aria-live="polite">あなたの手番</span></div></div>
 </header>
  <aside class="panel inspector" id="inspector"><div class="panel-head"><span>PIECE STATUS</span><span id="selectedMark">未選択</span></div><div class="inspector-body" id="inspectorBody"></div><div class="skill-actions inactive" id="skillActions"><button class="skill-btn" id="normalAttackBtn" aria-pressed="false">通常攻撃<small>射程内の敵を選択</small></button><button class="skill-btn" id="uniqueSkillBtn" disabled>固有技<small>未実装</small></button><button class="skill-btn" id="ultimateSkillBtn" disabled>必殺技<small>未実装</small></button></div><div class="action-footer"><div class="action-note" id="boardHint" aria-live="polite"></div><button class="cancel-attack" id="cancelAttackBtn" hidden>攻撃をやめる</button></div></aside>
@@ -86,6 +86,29 @@ const MASTER = Object.freeze({
   dragon: Object.freeze({ name: 'ドラゴン', icon: '🐉', hp: 12, atk: 5, move: 2, range: 2, cost: 6 })
 });
 
+/* VER.005 army scale. Character values and battle algorithms stay independent. */
+const ARMY_RULES = Object.freeze({
+  maxHandPieces: 11,
+  costLimit: 35,
+  startingTypes: Object.freeze([
+    'knight', 'knight', 'knight', 'knight',
+    'archer', 'archer', 'archer', 'archer',
+    'slime', 'slime', 'slime'
+  ]),
+  firstFloorEnemyTypes: Object.freeze([
+    'slime', 'slime', 'slime', 'slime', 'slime', 'slime', 'slime',
+    'goblin', 'goblin', 'goblin', 'goblin'
+  ]),
+  playerSlots: Object.freeze([
+    [2,0], [2,1], [2,2], [2,3], [2,4], [1,1], [1,3],
+    [0,0], [0,1], [0,3], [0,4]
+  ].map(([x,y]) => Object.freeze({x,y}))),
+  enemySlots: Object.freeze([
+    [4,0], [4,1], [4,2], [4,3], [4,4], [5,1], [5,3],
+    [6,0], [6,1], [6,3], [6,4]
+  ].map(([x,y]) => Object.freeze({x,y})))
+});
+
 /* Pure battle rules. UI and animation are deliberately outside this module. */
 const Engine = (() => {
   const WIDTH = 7, HEIGHT = 5;
@@ -104,11 +127,11 @@ const Engine = (() => {
   });
 
   function formationError(state, ids) {
-    if (!Array.isArray(ids) || ids.length > 3) return '手駒は最大3体まで編成できるよ。';
+    if (!Array.isArray(ids) || ids.length > ARMY_RULES.maxHandPieces) return `手駒は最大${ARMY_RULES.maxHandPieces}体まで編成できるよ。`;
     if (new Set(ids).size !== ids.length) return '同じ個体は2回選べないよ。';
     const pieces = ids.map(id => state.roster.find(piece => piece.id === id));
     if (pieces.some(piece => !piece || !MASTER[piece.type] || piece.type === 'king')) return '持っている手駒を選んでね。';
-    if (pieces.reduce((sum, piece) => sum + MASTER[piece.type].cost, 0) > 10) return '編成コストは10までだよ。';
+    if (pieces.reduce((sum, piece) => sum + MASTER[piece.type].cost, 0) > ARMY_RULES.costLimit) return `編成コストは${ARMY_RULES.costLimit}までだよ。`;
     return null;
   }
 
@@ -133,11 +156,15 @@ const Engine = (() => {
     state.units = [unit(state, 'king', 'player', 0, 2)];
     state.formation.forEach((id, index) => {
       const piece = state.roster.find(item => item.id === id);
-      state.units.push(unit(state, piece.type, 'player', 1, index + 1));
+      const {x,y} = ARMY_RULES.playerSlots[index];
+      state.units.push(unit(state, piece.type, 'player', x, y));
     });
     state.units.push(unit(state, 'king', 'enemy', 6, 2));
-    const enemies = state.floor === 1 ? ['slime', 'goblin', 'slime'] : Array.from({ length: 3 }, () => weightedEnemy(state.floor));
-    enemies.forEach((type, index) => state.units.push(unit(state, type, 'enemy', 5, index + 1)));
+    const enemies = state.floor === 1 ? ARMY_RULES.firstFloorEnemyTypes : Array.from({ length: ARMY_RULES.maxHandPieces }, () => weightedEnemy(state.floor));
+    enemies.forEach((type, index) => {
+      const {x,y} = ARMY_RULES.enemySlots[index];
+      state.units.push(unit(state, type, 'enemy', x, y));
+    });
     state.phase = 'player';
     state.turn = 1;
     state.candidates = [];
@@ -153,7 +180,7 @@ const Engine = (() => {
       roster: [], formation: [], candidates: [], lastRewards: [], log: [],
       history: {}, nextId: 1
     };
-    state.roster = ['knight', 'archer', 'slime'].map(type => rosterPiece(state, type));
+    state.roster = ARMY_RULES.startingTypes.map(type => rosterPiece(state, type));
     state.formation = state.roster.map(piece => piece.id);
     startBattle(state);
     return state;
@@ -361,14 +388,14 @@ const Engine = (() => {
   return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance });
 })();
 
-globalThis.Sekasoko = { MASTER, Engine };
+globalThis.Sekasoko = { MASTER, ARMY_RULES, Engine };
 
 </script>
 <script>
 /* UI adapter: no rule data here. All actions go through the pure Engine. */
 (() => {
 'use strict';
-const { MASTER, Engine } = globalThis.Sekasoko;
+const { MASTER, ARMY_RULES, Engine } = globalThis.Sekasoko;
 const $ = id => document.getElementById(id);
 const board = $('board'), pieceLayer = $('pieceLayer'), cells = $('cells'), overlay = $('overlay'), modal = $('modal');
 const names = ['はじまりの回廊','苔むした階段','忘れられた門','薄明の広間','石像の庭','残響の迷宮','深緑の祭壇','竜影の回廊','世界の継ぎ目','底へ続く扉'];
@@ -682,7 +709,7 @@ function showFormation() {
     const isNew=i>=state.roster.length-state.lastRewards.length;
     return `<button class="roster-card ${chosen?'chosen':''}" data-roster="${p.id}" aria-pressed="${chosen}" aria-label="${m.name} 個体${i+1} コスト${m.cost} ${chosen?'出撃中':'控え'}"><span class="roster-icon" aria-hidden="true">${m.icon}</span><span class="cost">COST ${m.cost}</span><span class="check">${chosen?'✓ 出撃':isNew?'NEW':''}</span><span class="name">${m.name} <small style="color:var(--muted)">#${i+1}</small></span><span class="mini-stat">HP ${m.hp}　ATK ${m.atk}<br>移動 ${m.move}　射程 ${m.range}</span></button>`;
   }).join('');
-  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY</div><h2 id="modalTitle">手駒を迎えて、さらに深く。</h2><p>味方は全員復帰・HP全回復。次の階層の仲間を選ぼう。</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/3　コスト ${cost}/10</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王</span><span class="mini-stat">HP 12　ATK 2<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ3体までが王と出撃するよ。</span><button class="primary" id="nextFloorBtn">${state.floor+1}Fへ進む →</button></div>`);
+  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY</div><h2 id="modalTitle">手駒を迎えて、さらに深く。</h2><p>味方は全員復帰・HP全回復。次の階層の仲間を選ぼう。</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王</span><span class="mini-stat">HP 12　ATK 2<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button class="primary" id="nextFloorBtn">${state.floor+1}Fへ進む →</button></div>`);
   modal.querySelectorAll('[data-roster]').forEach(button=>button.addEventListener('click',()=>{
     const id=button.dataset.roster;
     const ids=state.formation.includes(id)?state.formation.filter(p=>p!==id):[...state.formation,id];
@@ -699,7 +726,7 @@ function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.004 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.005 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
@@ -709,7 +736,7 @@ function resetRun() {
   closeModal();render();toast('新しい探索が始まった。1Fから、もう一度！');
 }
 function showRules() {
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.004</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大3体、コスト合計10以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.005</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);

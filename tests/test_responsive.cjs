@@ -12,6 +12,8 @@ const qaHTML=html.replace('let state = Engine.createRun(), selectedId','let stat
 assert.notEqual(qaHTML,html,'The test-only state capture must match the UI entry point.');
 // Captured before VER.004 from the verified VER.003 HTML; keeps CI comparison independent of ignored artifacts.
 const BASELINE003={"390x844":{"width":339.984375,"height":218.546875},"375x667":{"width":324.984375,"height":208.90625},"320x568":{"width":280,"height":180},"844x390":{"width":437.109375,"height":280.984375},"667x375":{"width":390,"height":250.703125},"812x375":{"width":413.765625,"height":265.984375},"844x330":{"width":365.546875,"height":234.984375},"1440x1000":{"width":1043,"height":670.5}};
+// Recorded VER.004 geometry: army scaling must preserve the accepted UI layout.
+const BASELINE004={"390x844":{"board":{"x":24,"y":381.09375,"width":342,"height":430.90625},"frame":{"x":14,"y":371.09375,"width":362,"height":450.90625},"hud":{"x":14,"y":8,"width":362,"height":61},"status":{"x":14,"y":77,"width":362,"height":177.59375}},"375x667":{"board":{"x":33.9296875,"y":248.015625,"width":307.140625,"height":386.984375},"frame":{"x":23.9296875,"y":238.015625,"width":327.140625,"height":406.984375},"hud":{"x":14,"y":8,"width":347,"height":61},"status":{"x":14,"y":77,"width":347,"height":151}},"320x568":{"board":{"x":42.546875,"y":243.03125,"width":234.90625,"height":295.96875},"frame":{"x":33.546875,"y":234.03125,"width":252.90625,"height":313.96875},"hud":{"x":11,"y":6,"width":298,"height":57},"status":{"x":11,"y":70,"width":298,"height":156}},"844x390":{"board":{"x":27,"y":17,"width":532,"height":342},"frame":{"x":17,"y":7,"width":552,"height":362},"hud":{"x":582,"y":7,"width":245,"height":91},"status":{"x":582,"y":106,"width":245,"height":271}},"667x375":{"board":{"x":27,"y":80.4375,"width":410,"height":263.5625},"frame":{"x":17,"y":70.4375,"width":430,"height":283.5625},"hud":{"x":460,"y":7,"width":190,"height":91},"status":{"x":460,"y":106,"width":190,"height":256}},"812x375":{"board":{"x":27,"y":17.015625,"width":508.65625,"height":326.984375},"frame":{"x":17,"y":7.015625,"width":528.65625,"height":346.984375},"hud":{"x":558.65625,"y":7,"width":236.34375,"height":91},"status":{"x":558.65625,"y":106,"width":236.34375,"height":256}},"844x330":{"board":{"x":23,"y":14.015625,"width":446.4375,"height":286.984375},"frame":{"x":14,"y":5.015625,"width":464.4375,"height":304.984375},"hud":{"x":488.4375,"y":5,"width":341.5625,"height":81},"status":{"x":488.4375,"y":92,"width":341.5625,"height":226}},"1440x1000":{"board":{"x":27,"y":266.359375,"width":1093,"height":702.640625},"frame":{"x":17,"y":256.359375,"width":1113,"height":722.640625},"hud":{"x":1143,"y":7,"width":280,"height":91},"status":{"x":1143,"y":106,"width":280,"height":881}}};
 const PORTRAIT={width:390,height:844}, LANDSCAPE={width:844,height:390};
 const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAPE,{width:667,height:375},{width:812,height:375},{width:844,height:330},{width:1440,height:1000}];
 (async()=>{
@@ -24,7 +26,14 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
  let passed=0;
  async function check(name,fn){await fn();passed++;console.log(`PASS ${name}`);}
  async function resize(viewport){await page.setViewportSize(viewport);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
- async function load(viewport=PORTRAIT){await resize(viewport);await page.goto('about:blank');await page.setContent(qaHTML,{waitUntil:'load'});await page.waitForSelector('.unit');}
+ async function load(viewport=PORTRAIT,classic=true){await resize(viewport);await page.goto('about:blank');await page.setContent(qaHTML,{waitUntil:'load'});await page.waitForSelector('.unit');if(classic)await sparseBattle();}
+ async function sparseBattle(){
+   const anchor=await page.evaluate(()=>{
+     const s=__qaState,id=s.units.find(u=>u.side==='player'&&u.type==='king').id;s.roster=['knight','archer','slime'].map(type=>s.roster.find(p=>p.type===type));s.formation=s.roster.map(p=>p.id);
+     const defs=[['king','player',0,2],['knight','player',1,1],['archer','player',1,2],['slime','player',1,3],['king','enemy',6,2],['slime','enemy',5,1],['goblin','enemy',5,2],['slime','enemy',5,3]];
+     s.units=defs.map(([type,side,x,y],i)=>({id:i?`qa-sparse-${i}`:id,type,side,x,y,hp:Sekasoko.MASTER[type].hp,maxHp:Sekasoko.MASTER[type].hp}));s.history={};return id;
+   });await page.locator(`[data-unit-id="${anchor}"]`).click();await page.locator(`[data-unit-id="${anchor}"]`).click();
+ }
  async function snapshot(){return await page.evaluate(()=>Sekasoko.inspect());}
  async function ready(){await page.waitForFunction(()=>Sekasoko.inspect().phase==='player'&&!document.querySelector('#waitBtn').disabled);}
  async function select(type='knight'){
@@ -137,6 +146,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
    });
    assert.deepEqual(report,{visible:true,enabled:true,inside:true,hit:true,modalInside:true,overflow:0});
  }
+ async function assertCTAForOwned(card){await card.scrollIntoViewIfNeeded();const report=await card.evaluate(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return e.checkVisibility({checkVisibilityCSS:true})&&r.top>=0&&r.left>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1&&(hit===e||e.contains(hit));});assert.equal(report,true,'owned piece card must remain reachable');}
  async function rotateModal(selector){
    const before=await snapshot();
    for(const viewport of [PORTRAIT,LANDSCAPE,PORTRAIT]){
@@ -153,8 +163,15 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
    await page.locator(`[data-unit-id="${id}"]`).click();
  }
  try{
-   for(const viewport of viewports)await check(`${viewport.width}×${viewport.height}: projected .90 cells, upright HP, larger board, right/above HUD and invariant geometry`,async()=>{
-     await load(viewport);const b=await boardRect();await select();const metrics=await assertLayout();await fixed(b);const old=BASELINE003[`${viewport.width}x${viewport.height}`];assert.ok(b.width*b.height>old.width*old.height,`board area must grow from VER.003 at ${viewport.width}x${viewport.height}`);comparisons.push({viewport,old,actual:metrics,areaGrowth:b.width*b.height/(old.width*old.height)});await page.screenshot({path:path.join(artifacts,`${viewport.width}x${viewport.height}-initial-knight.png`)});
+   for(const viewport of viewports)await check(`${viewport.width}×${viewport.height}: true24 unit/HP taps, .90 projection and exact VER.004 layout parity`,async()=>{
+     await load(viewport,false);assert.equal((await snapshot()).units.length,24);const b=await boardRect(),initialKnight=await select();const metrics=await assertLayout();await fixed(b);const parity=BASELINE004[`${viewport.width}x${viewport.height}`];for(const region of ['board','frame','hud','status'])for(const key of ['x','y','width','height'])assert.ok(Math.abs(metrics[region][key]-parity[region][key])<.02,`VER.004 layout changed: ${region}.${key}`);const old=BASELINE003[`${viewport.width}x${viewport.height}`];assert.ok(b.width*b.height>old.width*old.height,`board area must grow from VER.003 at ${viewport.width}x${viewport.height}`);comparisons.push({viewport,old,actual:metrics,areaGrowth:b.width*b.height/(old.width*old.height)});await page.screenshot({path:path.join(artifacts,`${viewport.width}x${viewport.height}-ver005-24units.png`)});
+     await page.locator(`[data-unit-id="${initialKnight}"]`).click();const fullArmy=await snapshot();
+     for(const u of fullArmy.units){
+       const target=page.locator(`[data-unit-id="${u.id}"]`);
+       for(const part of [target,target.locator('.hp')]){const r=await part.boundingBox();await page.mouse.click(r.x+r.width/2,r.y+r.height/2);assert.equal(await target.getAttribute('aria-pressed'),'true');await page.mouse.click(r.x+r.width/2,r.y+r.height/2);assert.equal(await page.locator('.unit.is-selected').count(),0);}
+       assert.deepEqual(await snapshot(),fullArmy);await fixed(b);
+     }
+     await sparseBattle();await select();await fixed(b);
      const enemy=await page.evaluate(()=>__qaState.units.find(u=>u.type==='goblin'&&u.side==='enemy').id);await page.locator(`[data-unit-id="${enemy}"]`).click();await fixed(b);await assertLayout();
      await page.locator(`[data-unit-id="${enemy}"]`).click();await fixed(b);await assertLayout();
      await page.evaluate(()=>{const a=__qaState.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;});await select('archer');await page.locator('#normalAttackBtn').click();await fixed(b);await assertLayout();
@@ -209,7 +226,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      }
    });
    await check('Portrait→landscape→portrait retains selected stats, exact highlights, damaged HP, candidates and full state',async()=>{
-     await load();await fixture();await select();
+     await load(PORTRAIT,false);await fixture();await select();assert.equal((await snapshot()).units.length,24);
      const before=await snapshot(),presentation=await selectedPresentation();
      assert.match(presentation.text,/騎士/);assert.match(presentation.text,/2/);
      for(const viewport of [LANDSCAPE,PORTRAIT]){
@@ -277,9 +294,9 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      }
      const control=await perform(false),rotated=await perform(true);assert.deepEqual(rotated,control);await assertLayout();
    });
-   await check('Rotation while the enemy is thinking preserves candidates, roster, log and schedules one AI action',async()=>{
+   await check('Full24-army enemy-thinking rotation preserves candidates, roster, log and schedules one AI action',async()=>{
      async function perform(rotating){
-       await load();await fixture();await select();const before=await snapshot();
+       await load(PORTRAIT,false);await fixture();await select();const before=await snapshot();
        await page.locator('#waitBtn').click();
        if(rotating){
          await page.waitForFunction(()=>Sekasoko.inspect().phase==='enemy'&&document.querySelector('#waitBtn').disabled);
@@ -296,13 +313,23 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      await load();await page.locator('#menuBtn').click();await page.locator('#helpBtn').click();assert.equal(await page.locator('.master-table tbody tr').count(),10);
      await rotateModal('#backToBoardBtn');await page.locator('#backToBoardBtn').click();assert.equal(await page.locator('#overlay').isVisible(),false);
    });
-   await check('Large acquired-piece formation survives rotation and its next-floor CTA deploys the chosen team',async()=>{
-     await load();await page.evaluate(()=>{
-       for(let i=0;i<12;i++)__qaState.roster.push({id:`qa-spare-${i}`,type:i%2?'slime':'goblin'});
-     });
-     await attackKing();await page.waitForSelector('#nextFloorBtn');const inventory=(await snapshot()).roster.length;await rotateModal('#nextFloorBtn');assert.equal((await snapshot()).roster.length,inventory);
-     assert.equal((await snapshot()).phase,'victory');await rotateModal('#nextFloorBtn');
-     await page.locator('#nextFloorBtn').click();await ready();assert.equal((await snapshot()).floor,2);await assertLayout();
+   await check('All11 long-name rewards and102 owned pieces remain individually reachable with next-floor CTA at small portrait and landscape',async()=>{
+     const cdp=await page.context().newCDPSession(page);
+     try{for(const viewport of [{width:320,height:568},LANDSCAPE,{width:844,height:330}]){
+       await load(viewport,false);const notched=viewport.width===844&&viewport.height===390;await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:notched?{top:0,left:47,bottom:21,right:47}:{top:0,left:0,bottom:0,right:0}});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+       const anchor=await page.evaluate(()=>{
+         const s=__qaState,types=['dragon','mage','hamster','golem','knight','archer','slime','goblin','orc'];
+         for(let i=0;i<80;i++)s.roster.push({id:`qa-large-owned-${i}`,type:types[i%types.length]});
+         s.candidates=Array.from({length:11},(_,i)=>types[i%types.length]);s.units=s.units.filter(u=>u.side==='player'||u.type==='king');
+         const a=s.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;s.units.find(u=>u.type==='king'&&u.side==='enemy').hp=1;return a.id;
+       });
+       await page.locator(`[data-unit-id="${anchor}"]`).click();const king=(await snapshot()).units.find(u=>u.side==='enemy'&&u.type==='king');await page.locator(`[data-unit-id="${king.id}"]`).click();await page.waitForSelector('#nextFloorBtn');
+       const won=await snapshot();assert.equal(won.phase,'victory');assert.equal(won.lastRewards.length,11);assert.equal(won.roster.length,102);assert.equal(await page.locator('.rewards .loot-chip').count(),11);assert.equal(await page.locator('[data-roster]').count(),102);
+       for(const chip of await page.locator('.rewards .loot-chip').all()){await chip.scrollIntoViewIfNeeded();assert.ok(await chip.isVisible());const r=await chip.boundingBox();assert.ok(r.x>=0&&r.y>=0&&r.x+r.width<=viewport.width+1&&r.y+r.height<=viewport.height+1);}
+       for(const card of await page.locator('[data-roster]').all())await assertCTAForOwned(card);
+       await assertCTA('#nextFloorBtn');if(notched){const r=await page.locator('#modal').boundingBox();assert.ok(r.x>=46&&r.x+r.width<=798&&r.y+r.height<=370,'notched formation modal must respect47px sides and21px bottom');}assert.deepEqual(await snapshot(),won);await page.screenshot({path:path.join(artifacts,`ver005-large-formation-${viewport.width}x${viewport.height}.png`)});
+       await page.locator('#nextFloorBtn').click();await ready();const next=await snapshot();assert.equal(next.floor,2);assert.equal(next.units.length,24);assert.equal(next.roster.length,102);await assertLayout(notched?21:0);
+     }}finally{await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:{top:0,left:0,bottom:0,right:0}});await cdp.detach();}
    });
    await check('Defeat dialog preserves its state through rotation and retry is reachable in both orientations',async()=>{
      await load();await page.evaluate(()=>{
@@ -311,12 +338,14 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      await page.locator('#waitBtn').click();await page.waitForSelector('#retryBtn');assert.equal((await snapshot()).phase,'defeat');
      await rotateModal('#retryBtn');await page.locator('#retryBtn').click();await ready();assert.equal((await snapshot()).floor,1);
    });
-   await check('10F clear dialog preserves completion through rotation and retry is reachable in both orientations',async()=>{
-     await load();await attackKing(10);await page.waitForSelector('#retryBtn');assert.equal((await snapshot()).phase,'clear');
-     await rotateModal('#retryBtn');await page.locator('#retryBtn').click();await ready();assert.equal((await snapshot()).floor,1);
+   await check('10F clear exposes all11 rewards, survives both orientations and retries to a fresh24-unit army',async()=>{
+     await load(PORTRAIT,false);const anchor=await page.evaluate(()=>{const s=__qaState,types=['dragon','mage','hamster','golem','knight','archer','slime','goblin','orc'];s.floor=10;s.candidates=Array.from({length:11},(_,i)=>types[i%types.length]);s.units=s.units.filter(u=>u.side==='player'||u.type==='king');const a=s.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;s.units.find(u=>u.type==='king'&&u.side==='enemy').hp=1;return a.id;});
+     await page.locator(`[data-unit-id="${anchor}"]`).click();const king=(await snapshot()).units.find(u=>u.side==='enemy'&&u.type==='king');await page.locator(`[data-unit-id="${king.id}"]`).click();await page.waitForSelector('#retryBtn');assert.equal((await snapshot()).phase,'clear');assert.equal((await snapshot()).lastRewards.length,11);assert.equal(await page.locator('.rewards .loot-chip').count(),11);
+     for(const viewport of [{width:320,height:568},LANDSCAPE,{width:844,height:330}]){await resize(viewport);for(const chip of await page.locator('.rewards .loot-chip').all()){await chip.scrollIntoViewIfNeeded();const r=await chip.boundingBox();assert.ok(r.y>=0&&r.y+r.height<=viewport.height+1);}await assertCTA('#retryBtn');}
+     await page.screenshot({path:path.join(artifacts,'ver005-clear11-rewards.png')});await page.locator('#retryBtn').click();await ready();const reset=await snapshot();assert.equal(reset.floor,1);assert.equal(reset.roster.length,11);assert.equal(reset.units.length,24);
    });
    await check('Chromium safe-area override keeps controls, board, HP and hit targets clear of side notches and home indicator',async()=>{
-     await load(LANDSCAPE);await select();const before=await snapshot();
+     await load(LANDSCAPE,false);await select();const before=await snapshot();assert.equal(before.units.length,24);
      const cdp=await page.context().newCDPSession(page);
      try{
        await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:{top:0,left:47,bottom:21,right:47}});
@@ -361,7 +390,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      }
    });
    await check('Portrait top-notch and home-indicator safe areas preserve .90 board geometry and status controls',async()=>{
-     await load();await select();const before=await snapshot(),cdp=await page.context().newCDPSession(page);
+     await load(PORTRAIT,false);await select();const before=await snapshot();assert.equal(before.units.length,24);const cdp=await page.context().newCDPSession(page);
      try{
        await cdp.send('Emulation.setSafeAreaInsetsOverride',{insets:{top:44,left:0,bottom:34,right:0}});
        const violations=await page.evaluate(()=>['.topbar','#board','#inspectorBody','#waitBtn','[data-unit-id] .hp'].flatMap(selector=>[...document.querySelectorAll(selector)].filter(e=>{const r=e.getBoundingClientRect();return r.top<43||r.bottom>innerHeight-33;}).map(()=>selector)));
@@ -372,5 +401,5 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
    });
    console.log(`\n${passed}/${passed} responsive checks passed`);
- }finally{fs.writeFileSync(path.join(artifacts,'ver004-comparison.json'),JSON.stringify(comparisons,null,2)+'\n');await browser.close();}
+ }finally{fs.writeFileSync(path.join(artifacts,'ver005-comparison.json'),JSON.stringify(comparisons,null,2)+'\n');await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

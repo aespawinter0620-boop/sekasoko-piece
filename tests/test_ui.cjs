@@ -12,7 +12,15 @@ assert.notEqual(qaHTML,html);
  const errors=[],requests=[];let passed=0;
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
  async function check(name,fn){await fn();passed++;console.log(`PASS ${name}`);}
- async function load(){await page.goto('about:blank');await page.setContent(qaHTML,{waitUntil:'load'});await page.waitForSelector('.unit');}
+ async function load(classic=true){await page.goto('about:blank');await page.setContent(qaHTML,{waitUntil:'load'});await page.waitForSelector('.unit');if(classic)await sparseBattle();}
+ async function sparseBattle(){
+   const anchor=await page.evaluate(()=>{
+     const s=__qaState,id=s.units.find(u=>u.side==='player'&&u.type==='king').id;
+     s.roster=['knight','archer','slime'].map(type=>s.roster.find(p=>p.type===type));s.formation=s.roster.map(p=>p.id);
+     const defs=[['king','player',0,2],['knight','player',1,1],['archer','player',1,2],['slime','player',1,3],['king','enemy',6,2],['slime','enemy',5,1],['goblin','enemy',5,2],['slime','enemy',5,3]];
+     s.units=defs.map(([type,side,x,y],i)=>({id:i?`qa-sparse-${i}`:id,type,side,x,y,hp:Sekasoko.MASTER[type].hp,maxHp:Sekasoko.MASTER[type].hp}));s.history={};return id;
+   });await page.locator(`[data-unit-id="${anchor}"]`).click();await page.locator(`[data-unit-id="${anchor}"]`).click();
+ }
  async function state(){return await page.evaluate(()=>Sekasoko.inspect());}
  async function ready(){await page.waitForFunction(()=>Sekasoko.inspect().phase==='player'&&!document.querySelector('#waitBtn').disabled);}
  async function select(type='knight',side='player'){const id=await page.evaluate(({type,side})=>__qaState.units.find(u=>u.type===type&&u.side===side).id,{type,side});await page.locator(`[data-unit-id="${id}"]`).click();return id;}
@@ -23,13 +31,13 @@ assert.notEqual(qaHTML,html);
  async function openMenu(){await page.locator('#menuBtn').click();await page.waitForSelector('#menuPanel',{state:'visible'});}
  async function win(floor=1){await page.evaluate(floor=>{const s=__qaState;s.floor=floor;const a=s.units.find(u=>u.side==='player'&&u.type==='archer');a.x=3;a.y=2;const k=s.units.find(u=>u.side==='enemy'&&u.type==='king');k.x=6;k.y=2;k.hp=1;},floor);await select('archer');const king=await page.evaluate(()=>__qaState.units.find(u=>u.side==='enemy'&&u.type==='king').id);await page.locator(`[data-unit-id="${king}"]`).click();}
  try{
-  await load();
-  await check('Offline VER.004 initializes 35 cells, eight units, closed menu/log and no permanent loot panel',async()=>{
-    assert.equal(await page.locator('.cell').count(),35);assert.equal(await page.locator('.unit').count(),8);const s=await state();assert.equal(s.floor,1);assert.equal(s.phase,'player');
+  await load(false);
+  await check('Offline VER.005 initializes true24 units,11 companions per side,cost23 and no permanent loot panel',async()=>{
+    assert.equal(await page.locator('.cell').count(),35);assert.equal(await page.locator('.unit').count(),24);const s=await state();assert.equal(s.floor,1);assert.equal(s.phase,'player');assert.equal(s.roster.length,11);assert.equal(s.formation.length,11);assert.equal(s.roster.reduce((sum,p)=>sum+({knight:3,archer:2,slime:1}[p.type]),0),23);assert.equal(s.units.filter(u=>u.side==='player').length,12);assert.equal(s.units.filter(u=>u.side==='enemy').length,12);assert.equal(new Set(s.units.map(u=>`${u.x},${u.y}`)).size,24);assert.equal(s.roster.filter(p=>p.type==='knight').length,4);assert.equal(s.roster.filter(p=>p.type==='archer').length,4);assert.equal(s.roster.filter(p=>p.type==='slime').length,3);assert.equal(s.units.filter(u=>u.side==='enemy'&&u.type==='slime').length,7);assert.equal(s.units.filter(u=>u.side==='enemy'&&u.type==='goblin').length,4);assert.ok(s.units.every(u=>u.hp===u.maxHp));
     assert.equal(await page.locator('#board .unit-name').evaluateAll(es=>es.every(e=>!e.checkVisibility({checkVisibilityCSS:true}))),true);assert.match(await page.locator('.unit.player').first().getAttribute('aria-label'),/王/);assert.equal(await page.locator('#menuPanel').isVisible(),false);assert.equal(await page.locator('#logPanel').isVisible(),false);assert.equal(await page.locator('#lootList,#lootCount').count(),0);
   });
   await check('Ally selection shows art, stats and three action buttons without moving the board',async()=>{
-    const b=await rect();await select();await fixed(b);assert.match(await page.locator('#inspectorBody').textContent(),/騎士/);
+    await load();const b=await rect();await select();await fixed(b);assert.match(await page.locator('#inspectorBody').textContent(),/騎士/);
     assert.ok(await page.locator('#inspectorBody .portrait').isVisible());assert.equal(await page.locator('#skillActions button').count(),3);
     assert.equal(await page.locator('#normalAttackBtn').isVisible(),true);assert.equal(await page.locator('#uniqueSkillBtn').isDisabled(),true);assert.equal(await page.locator('#ultimateSkillBtn').isDisabled(),true);
     const id=await page.locator('.unit.is-selected').getAttribute('data-unit-id');
@@ -70,13 +78,13 @@ assert.notEqual(qaHTML,html);
   });
   await check('Menu exposes help and restart; help lists all ten master characters and returns to the board',async()=>{
     const b=await rect();await openMenu();await fixed(b);assert.equal(await page.locator('#helpBtn').isVisible(),true);assert.equal(await page.locator('#restartBtn').isVisible(),true);
-    await page.locator('#helpBtn').click();assert.equal(await page.locator('.master-table tbody tr').count(),10);assert.equal(await page.locator('#overlay').isVisible(),true);
+    await page.locator('#helpBtn').click();assert.equal(await page.locator('.master-table tbody tr').count(),10);assert.match(await page.locator('.rules-grid').textContent(),/最大11体/);assert.match(await page.locator('.rules-grid').textContent(),/35以内/);assert.equal(await page.locator('#overlay').isVisible(),true);
     await page.keyboard.press('Escape');assert.equal(await page.locator('#overlay').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement.id),'menuBtn');await fixed(b);
     await openMenu();await page.locator('#closeMenuBtn').click();assert.equal(await page.locator('#menuPanel').isVisible(),false);await fixed(b);
   });
   await check('Restart cancellation preserves progress and confirmation restores the initial party',async()=>{
     const before=await state();await openMenu();await page.locator('#restartBtn').click();await page.locator('#cancelRestartBtn').click();assert.deepEqual(await state(),before);
-    await openMenu();await page.locator('#restartBtn').click();await page.locator('#confirmRestartBtn').click();await ready();const s=await state();assert.equal(s.floor,1);assert.equal(s.turn,1);assert.equal(s.totalActions,0);assert.equal(s.roster.length,3);
+    await openMenu();await page.locator('#restartBtn').click();await page.locator('#confirmRestartBtn').click();await ready();const s=await state();assert.equal(s.floor,1);assert.equal(s.turn,1);assert.equal(s.totalActions,0);assert.equal(s.roster.length,11);assert.equal(s.units.length,24);
   });
   await check('A real kill shows a nonmodal auto-hiding acquisition popup while ownership waits for victory',async()=>{
     await load();await ranged();await page.evaluate(()=>{__qaState.roster.push({id:'qa-dragon',type:'dragon'},{id:'qa-mage',type:'mage'});__qaState.units.filter(u=>u.side==='enemy'&&u.type==='slime').forEach(u=>u.hp=1);});
@@ -92,16 +100,27 @@ assert.notEqual(qaHTML,html);
     const s=await state();assert.equal(s.phase,'victory');assert.deepEqual(s.lastRewards,['slime','slime']);assert.equal(s.roster.length,7);assert.equal(s.roster.filter(u=>u.type==='king').length,0);assert.equal(s.roster.filter(u=>u.type==='goblin').length,0);assert.equal(await mode(),false);
     assert.equal(await page.locator('.rewards .loot-chip').count(),2);assert.match(await page.locator('.rewards').textContent(),/スライム/);assert.equal(await page.locator('#nextFloorBtn').count(),1);
   });
-  await check('Victory formation preserves inventory and validates slot, cost and duplicate deployment',async()=>{
-    const before=await state();await page.waitForSelector('#nextFloorBtn');assert.equal((await state()).roster.length,before.roster.length);
-    const s=await state(),acquired=s.roster.at(-1).id,knight=s.roster.find(u=>u.type==='knight').id,originalSlime=s.roster.find(u=>u.type==='slime').id;
-    await page.locator(`[data-roster="${acquired}"]`).click();assert.equal((await state()).formation.length,3);assert.match(await page.locator('#toast').textContent(),/最大3体/);
-    await page.locator(`[data-roster="${knight}"]`).click();await page.locator(`[data-roster="${originalSlime}"]`).click();await page.locator('[data-roster="qa-dragon"]').click();
-    await page.locator('[data-roster="qa-mage"]').click();assert.match(await page.locator('#toast').textContent(),/10/);assert.equal((await state()).formation.length,2);
-    await page.locator('[data-roster="qa-dragon"]').click();await page.locator(`[data-roster="${originalSlime}"]`).click();await page.locator(`[data-roster="${acquired}"]`).click();
-    const chosen=await state();assert.equal(chosen.formation.filter(id=>chosen.roster.find(u=>u.id===id).type==='slime').length,2);
-    await page.locator('#nextFloorBtn').click();await ready();const next=await state();assert.equal(next.floor,2);assert.equal(next.turn,1);assert.equal(next.units.filter(u=>u.side==='player'&&u.type==='slime').length,2);assert.ok(next.units.every(u=>u.hp===u.maxHp));assert.equal(next.roster.length,before.roster.length);
-    await page.screenshot({path:path.join(artifacts,'ver003-battle.png')});
+  await check('Formation accepts11 individual companions at cost35, rejects a twelfth and cost40, and deploys all chosen pieces',async()=>{
+    const previous=await state();
+    const cap=await page.evaluate(()=>{
+      const list=[...Array.from({length:7},(_,i)=>({id:`qa-cap-golem-${i}`,type:'golem'})),...Array.from({length:3},(_,i)=>({id:`qa-cap-archer-${i}`,type:'archer'})),{id:'qa-cap-slime',type:'slime'}];
+      __qaState.roster.push(...list,{id:'qa-cap-extra',type:'slime'},{id:'qa-cap-dragon',type:'dragon'});return list.map(p=>p.id);
+    });
+    // One genuine selection change refreshes the already-open formation with the larger owned inventory.
+    await page.locator(`[data-roster="${previous.formation[0]}"]`).click();
+    for(const id of (await state()).formation)await page.locator(`[data-roster="${id}"]`).click();
+    for(const id of cap)await page.locator(`[data-roster="${id}"]`).click();
+    let selected=await state();assert.equal(selected.formation.length,11);assert.match(await page.locator('.formation-count').textContent(),/11\s*\/\s*11/);assert.match(await page.locator('.formation-count').textContent(),/35\s*\/\s*35/);
+    assert.equal(selected.formation.filter(id=>selected.roster.find(p=>p.id===id).type==='golem').length,7);assert.equal(new Set(selected.formation).size,11);
+    const full=[...selected.formation];await page.locator('[data-roster="qa-cap-extra"]').click();assert.deepEqual((await state()).formation,full);assert.match(await page.locator('#toast').textContent(),/最大11体/);
+    await page.locator('[data-roster="qa-cap-slime"]').click();const ten=[...(await state()).formation];await page.locator('[data-roster="qa-cap-dragon"]').click();assert.deepEqual((await state()).formation,ten);assert.match(await page.locator('#toast').textContent(),/35/);
+    await page.locator('[data-roster="qa-cap-slime"]').click();const inventory=(await state()).roster.length;
+    await page.locator('#nextFloorBtn').click();await ready();const next=await state();assert.equal(next.floor,2);assert.equal(next.turn,1);assert.equal(next.units.filter(u=>u.side==='player').length,12);assert.equal(next.units.filter(u=>u.side==='enemy').length,12);assert.equal(next.units.filter(u=>u.side==='player'&&u.type==='golem').length,7);assert.equal(next.units.filter(u=>u.side==='player'&&u.type==='archer').length,3);assert.ok(next.units.every(u=>u.hp===u.maxHp));assert.equal(next.roster.length,inventory);
+    await page.screenshot({path:path.join(artifacts,'ver005-max-formation-battle.png')});
+  });
+  await check('Zero-companion UI formation is valid and the next floor deploys the mandatory king alone',async()=>{
+    await load();await win();await page.waitForSelector('#nextFloorBtn');for(const id of (await state()).formation)await page.locator(`[data-roster="${id}"]`).click();assert.equal((await state()).formation.length,0);assert.match(await page.locator('.formation-count').textContent(),/0\s*\/\s*11/);
+    await page.locator('#nextFloorBtn').click();await ready();const s=await state();assert.equal(s.floor,2);assert.deepEqual(s.units.filter(u=>u.side==='player').map(u=>u.type),['king']);assert.equal(s.units.filter(u=>u.side==='enemy').length,12);assert.equal(s.formation.length,0);
   });
   await check('Defeat loses provisional rewards and retry clears transient UI and restarts',async()=>{
     await load();await page.evaluate(()=>{const s=__qaState,k=s.units.find(u=>u.side==='player'&&u.type==='king');k.x=4;k.y=2;k.hp=1;s.candidates=['slime','slime'];});await page.locator('#waitBtn').click();await page.waitForSelector('#retryBtn');
@@ -109,7 +128,7 @@ assert.notEqual(qaHTML,html);
   });
   await check('10F clear lists acquired rewards and retry starts a fresh run',async()=>{
     await load();await page.evaluate(()=>{__qaState.candidates=['dragon','slime'];});await win(10);await page.waitForSelector('#retryBtn');assert.equal((await state()).phase,'clear');assert.match(await page.locator('#modal').textContent(),/10F/);assert.equal(await page.locator('.rewards .loot-chip').count(),2);
-    await page.locator('#retryBtn').click();await ready();const s=await state();assert.equal(s.floor,1);assert.equal(s.roster.length,3);assert.equal(s.candidates.length,0);
+    await page.locator('#retryBtn').click();await ready();const s=await state();assert.equal(s.floor,1);assert.equal(s.roster.length,11);assert.equal(s.units.length,24);assert.equal(s.candidates.length,0);
   });
   await check('UI flows produce no browser errors or external requests',async()=>{assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);});
   console.log(`\n${passed}/${passed} browser UI checks passed`);

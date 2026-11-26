@@ -12,6 +12,29 @@ const MASTER = Object.freeze({
   dragon: Object.freeze({ name: 'ドラゴン', icon: '🐉', hp: 12, atk: 5, move: 2, range: 2, cost: 6 })
 });
 
+/* VER.005 army scale. Character values and battle algorithms stay independent. */
+const ARMY_RULES = Object.freeze({
+  maxHandPieces: 11,
+  costLimit: 35,
+  startingTypes: Object.freeze([
+    'knight', 'knight', 'knight', 'knight',
+    'archer', 'archer', 'archer', 'archer',
+    'slime', 'slime', 'slime'
+  ]),
+  firstFloorEnemyTypes: Object.freeze([
+    'slime', 'slime', 'slime', 'slime', 'slime', 'slime', 'slime',
+    'goblin', 'goblin', 'goblin', 'goblin'
+  ]),
+  playerSlots: Object.freeze([
+    [2,0], [2,1], [2,2], [2,3], [2,4], [1,1], [1,3],
+    [0,0], [0,1], [0,3], [0,4]
+  ].map(([x,y]) => Object.freeze({x,y}))),
+  enemySlots: Object.freeze([
+    [4,0], [4,1], [4,2], [4,3], [4,4], [5,1], [5,3],
+    [6,0], [6,1], [6,3], [6,4]
+  ].map(([x,y]) => Object.freeze({x,y})))
+});
+
 /* Pure battle rules. UI and animation are deliberately outside this module. */
 const Engine = (() => {
   const WIDTH = 7, HEIGHT = 5;
@@ -30,11 +53,11 @@ const Engine = (() => {
   });
 
   function formationError(state, ids) {
-    if (!Array.isArray(ids) || ids.length > 3) return '手駒は最大3体まで編成できるよ。';
+    if (!Array.isArray(ids) || ids.length > ARMY_RULES.maxHandPieces) return `手駒は最大${ARMY_RULES.maxHandPieces}体まで編成できるよ。`;
     if (new Set(ids).size !== ids.length) return '同じ個体は2回選べないよ。';
     const pieces = ids.map(id => state.roster.find(piece => piece.id === id));
     if (pieces.some(piece => !piece || !MASTER[piece.type] || piece.type === 'king')) return '持っている手駒を選んでね。';
-    if (pieces.reduce((sum, piece) => sum + MASTER[piece.type].cost, 0) > 10) return '編成コストは10までだよ。';
+    if (pieces.reduce((sum, piece) => sum + MASTER[piece.type].cost, 0) > ARMY_RULES.costLimit) return `編成コストは${ARMY_RULES.costLimit}までだよ。`;
     return null;
   }
 
@@ -59,11 +82,15 @@ const Engine = (() => {
     state.units = [unit(state, 'king', 'player', 0, 2)];
     state.formation.forEach((id, index) => {
       const piece = state.roster.find(item => item.id === id);
-      state.units.push(unit(state, piece.type, 'player', 1, index + 1));
+      const {x,y} = ARMY_RULES.playerSlots[index];
+      state.units.push(unit(state, piece.type, 'player', x, y));
     });
     state.units.push(unit(state, 'king', 'enemy', 6, 2));
-    const enemies = state.floor === 1 ? ['slime', 'goblin', 'slime'] : Array.from({ length: 3 }, () => weightedEnemy(state.floor));
-    enemies.forEach((type, index) => state.units.push(unit(state, type, 'enemy', 5, index + 1)));
+    const enemies = state.floor === 1 ? ARMY_RULES.firstFloorEnemyTypes : Array.from({ length: ARMY_RULES.maxHandPieces }, () => weightedEnemy(state.floor));
+    enemies.forEach((type, index) => {
+      const {x,y} = ARMY_RULES.enemySlots[index];
+      state.units.push(unit(state, type, 'enemy', x, y));
+    });
     state.phase = 'player';
     state.turn = 1;
     state.candidates = [];
@@ -79,7 +106,7 @@ const Engine = (() => {
       roster: [], formation: [], candidates: [], lastRewards: [], log: [],
       history: {}, nextId: 1
     };
-    state.roster = ['knight', 'archer', 'slime'].map(type => rosterPiece(state, type));
+    state.roster = ARMY_RULES.startingTypes.map(type => rosterPiece(state, type));
     state.formation = state.roster.map(piece => piece.id);
     startBattle(state);
     return state;
@@ -287,4 +314,4 @@ const Engine = (() => {
   return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance });
 })();
 
-globalThis.Sekasoko = { MASTER, Engine };
+globalThis.Sekasoko = { MASTER, ARMY_RULES, Engine };
