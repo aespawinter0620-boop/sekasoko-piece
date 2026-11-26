@@ -10,18 +10,21 @@ const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const qaHTML=html.replace('let state = Engine.createRun(), selectedId','let state = (globalThis.__qaState = Engine.createRun()), selectedId')
   .replace('state=Engine.createRun();','state=(globalThis.__qaState=Engine.createRun());');
 assert.notEqual(qaHTML,html,'The test-only state capture must match the UI entry point.');
+// Captured before VER.004 from the verified VER.003 HTML; keeps CI comparison independent of ignored artifacts.
+const BASELINE003={"390x844":{"width":339.984375,"height":218.546875},"375x667":{"width":324.984375,"height":208.90625},"320x568":{"width":280,"height":180},"844x390":{"width":437.109375,"height":280.984375},"667x375":{"width":390,"height":250.703125},"812x375":{"width":413.765625,"height":265.984375},"844x330":{"width":365.546875,"height":234.984375},"1440x1000":{"width":1043,"height":670.5}};
 const PORTRAIT={width:390,height:844}, LANDSCAPE={width:844,height:390};
 const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAPE,{width:667,height:375},{width:812,height:375},{width:844,height:330},{width:1440,height:1000}];
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||(fs.existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),args:['--no-sandbox']});
  const page=await browser.newPage({viewport:PORTRAIT,deviceScaleFactor:1});
- const errors=[],requests=[];
+ const errors=[],requests=[],comparisons=[];
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  page.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
  let passed=0;
  async function check(name,fn){await fn();passed++;console.log(`PASS ${name}`);}
- async function load(viewport=PORTRAIT){await page.setViewportSize(viewport);await page.goto('about:blank');await page.setContent(qaHTML,{waitUntil:'load'});await page.waitForSelector('.unit');}
+ async function resize(viewport){await page.setViewportSize(viewport);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
+ async function load(viewport=PORTRAIT){await resize(viewport);await page.goto('about:blank');await page.setContent(qaHTML,{waitUntil:'load'});await page.waitForSelector('.unit');}
  async function snapshot(){return await page.evaluate(()=>Sekasoko.inspect());}
  async function ready(){await page.waitForFunction(()=>Sekasoko.inspect().phase==='player'&&!document.querySelector('#waitBtn').disabled);}
  async function select(type='knight'){
@@ -51,42 +54,80 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      const issues=[],b=document.querySelector('#board').getBoundingClientRect();
      const rect=e=>e.getBoundingClientRect(),inside=r=>r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1;
      const contained=(r,c)=>r.left>=c.left-1&&r.top>=c.top-1&&r.right<=c.right+1&&r.bottom<=c.bottom+1;
+     const portrait=innerHeight>=innerWidth,cols=portrait?5:7,rows=portrait?7:5;
      const cells=[...document.querySelectorAll('.cell')],units=Sekasoko.inspect().units;
      if(document.documentElement.scrollWidth>innerWidth+1)issues.push('horizontal document overflow');
      if(!inside(b)||b.bottom>innerHeight-bottomInset+1)issues.push('board outside unobscured viewport');
+     const frame=rect(document.querySelector('.board-wrap'));if(!inside(frame)||frame.bottom>innerHeight-bottomInset+1)issues.push('board frame clips viewport');
      if(cells.length!==35)issues.push(`cell count ${cells.length}`);
      const first=rect(cells[0]);
      if(Math.abs(first.height/first.width-.90)>.002)issues.push(`cell H/W must equal .90 (${first.width}×${first.height})`);
+     if(Math.abs(b.width/b.height-(portrait?50/63:14/9))>.003)issues.push('board display aspect ratio');
+     const seen=new Set();
      for(const cell of cells){
-       const r=rect(cell),x=+cell.dataset.x,y=+cell.dataset.y;
+       const r=rect(cell),x=+cell.dataset.x,y=+cell.dataset.y,col=portrait?y:x,row=portrait?6-x:y;
        if(Math.abs(r.width-first.width)>1||Math.abs(r.height-first.height)>1)issues.push(`unequal cell ${x},${y}`);
-       if(Math.abs(r.left-(first.left+x*first.width))>1||Math.abs(r.top-(first.top+y*first.height))>1)issues.push(`misaligned cell ${x},${y}`);
+       if(Math.abs(r.left-(b.left+col*b.width/cols))>1||Math.abs(r.top-(b.top+row*b.height/rows))>1)issues.push(`incorrect independent projection ${x},${y}`);
+       const actualCol=Math.round((r.left-b.left)/r.width),actualRow=Math.round((r.top-b.top)/r.height);seen.add(`${actualCol},${actualRow}`);
        const cx=r.left+r.width/2,cy=r.top+r.height/2;if(!inside(r))issues.push(`cell outside viewport ${x},${y}`);
        const occupied=units.find(u=>u.x===x&&u.y===y),hit=document.elementFromPoint(cx,cy);
        if(occupied?hit?.closest('[data-unit-id]')?.dataset.unitId!==occupied.id:hit?.closest('.cell')!==cell)issues.push(`wrong hit layer ${x},${y}`);
      }
-     for(const selector of ['.topbar','#floorNum','#turnNum','#phaseBadge','#waitBtn']){
-       const e=document.querySelector(selector),r=rect(e);if(!e.checkVisibility()||!inside(r)||r.bottom>b.top+1)issues.push(`header not above visible board ${selector}`);
-     }
-     const status=rect(document.querySelector('.inspector'));
-     if(!inside(status))issues.push('status panel outside viewport');
-     if(innerWidth>innerHeight ? status.left<b.right-1 : status.bottom>b.top+1)issues.push('status is not above portrait / right of landscape board');
+     if(seen.size!==35)issues.push('display projection is not bijective');
+     const hud=rect(document.querySelector('#hud')||document.querySelector('.topbar')),status=rect(document.querySelector('.inspector'));
+     if(!inside(hud)||!inside(status))issues.push('HUD/status outside viewport');
+     if(portrait?status.bottom>b.top+1:(status.left<b.right-1||hud.left<b.right-1||hud.bottom>status.top+1))issues.push('portrait-above / landscape-right HUD and status layout');
+     for(const selector of ['#floorNum','#turnNum','#phaseBadge','#waitBtn']){const e=document.querySelector(selector),r=rect(e);if(!e.checkVisibility({checkVisibilityCSS:true})||!inside(r)||r.left<hud.left-1||r.right>hud.right+1||r.top<hud.top-1||r.bottom>status.top+1)issues.push(`HUD control not visible ${selector}`);}
      const body=document.querySelector('#inspectorBody'),bodyRect=rect(body),hasSelection=!!document.querySelector('.unit.is-selected');
      if(hasSelection?(!body.checkVisibility({checkVisibilityCSS:true})||!inside(bodyRect)||!contained(bodyRect,status)):body.checkVisibility({checkVisibilityCSS:true}))issues.push('selected details visibility does not match selection');
-     const ink=[];const intersects=(a,b)=>a.left<b.right-.1&&b.left<a.right-.1&&a.top<b.bottom-.1&&b.top<a.bottom-.1;
+     const upright=e=>{let m=new DOMMatrix();for(let n=e;n&&n!==document.body;n=n.parentElement){const t=getComputedStyle(n).transform;if(t!=='none')m=new DOMMatrix(t).multiply(m);}return Math.abs(m.b)<.001&&Math.abs(m.c)<.001&&m.a>0&&m.d>0;};
+     const ink=[],intersects=(a,b)=>a.left<b.right-.1&&b.left<a.right-.1&&a.top<b.bottom-.1&&b.top<a.bottom-.1;
      for(const e of document.querySelectorAll('[data-unit-id]')){
-       const u=units.find(u=>u.id===e.dataset.unitId),cell=document.querySelector(`.cell[data-x="${u.x}"][data-y="${u.y}"]`),c=rect(cell),r=rect(e),token=rect(e.querySelector('.token')),hp=e.querySelector('.hp'),h=rect(hp);
-       if(!inside(r)||!hp.checkVisibility()||!inside(h)||!/^\d+$/.test(hp.textContent))issues.push(`unit/HP not visible ${u.id}`);
+       const u=units.find(u=>u.id===e.dataset.unitId);if(!u){issues.push('stale unit after action');continue;}
+       const cell=document.querySelector(`.cell[data-x="${u.x}"][data-y="${u.y}"]`),c=rect(cell),r=rect(e),token=rect(e.querySelector('.token')),hp=e.querySelector('.hp'),h=rect(hp),emoji=e.querySelector('.emoji');
+       if(!inside(r)||!hp.checkVisibility({checkVisibilityCSS:true})||!inside(h)||!/^\d+$/.test(hp.textContent)||+hp.textContent!==u.hp)issues.push(`unit/HP not visible or synchronized ${u.id}`);
        if(!contained(r,c)||!contained(token,c)||!contained(h,c))issues.push(`piece or HP overlaps another cell ${u.id}`);
+       if(Math.abs((r.left+r.width/2)-(c.left+c.width/2))>1||Math.abs((r.top+r.height/2)-(c.top+c.height/2))>1)issues.push(`unit not on projected logical cell ${u.id}`);
        for(const p of [r,h])if(document.elementFromPoint(p.left+p.width/2,p.top+p.height/2)?.closest('[data-unit-id]')!==e)issues.push(`unit/HP center blocked ${u.id}`);
-       const textRect=node=>{const range=document.createRange();range.selectNodeContents(node);return range.getBoundingClientRect();};
-       const nameInk=textRect(e.querySelector('.unit-name')),hpInk=textRect(hp);
-       if(intersects(nameInk,hpInk))issues.push(`name and HP text overlap ${u.id}`);
-       ink.push({id:u.id,rects:[nameInk,hpInk]});
+       if(!upright(emoji)||!upright(hp))issues.push(`icon or HP rotated ${u.id}`);
+       const name=e.querySelector('.unit-name');if(name?.checkVisibility({checkVisibilityCSS:true}))issues.push(`board name should be hidden ${u.id}`);
+       if(!e.getAttribute('aria-label').includes(Sekasoko.MASTER[u.type].name))issues.push(`accessible unit name missing ${u.id}`);
+       const range=document.createRange();range.selectNodeContents(hp);ink.push({id:u.id,rect:range.getBoundingClientRect()});
      }
-     for(let i=0;i<ink.length;i++)for(let j=i+1;j<ink.length;j++)if(ink[i].rects.some(a=>ink[j].rects.some(b=>intersects(a,b))))issues.push(`adjacent name/HP text overlap ${ink[i].id}/${ink[j].id}`);
-     return{issues,viewport:[innerWidth,innerHeight],board:b.toJSON(),cell:[first.width,first.height]};
-   },bottomInset);assert.deepEqual(report.issues,[],JSON.stringify(report));
+     for(let i=0;i<ink.length;i++)for(let j=i+1;j<ink.length;j++)if(intersects(ink[i].rect,ink[j].rect))issues.push(`adjacent HP text overlap ${ink[i].id}/${ink[j].id}`);
+     return{issues,viewport:[innerWidth,innerHeight],board:b.toJSON(),frame:frame.toJSON(),hud:hud.toJSON(),status:status.toJSON(),cell:[first.width,first.height]};
+   },bottomInset);assert.deepEqual(report.issues,[],JSON.stringify(report));return report;
+ }
+ async function stage(name){await page.waitForFunction(name=>document.querySelector('#board').dataset.animation===name,name);}
+ async function projectedUnits(){
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   const issues=await page.evaluate(()=>{
+     const b=document.querySelector('#board').getBoundingClientRect(),p=innerHeight>=innerWidth,cols=p?5:7,rows=p?7:5,out=[];
+     for(const u of Sekasoko.inspect().units){const e=document.querySelector(`[data-unit-id="${u.id}"]`);if(!e){out.push(`missing ${u.id}`);continue;}const r=e.getBoundingClientRect(),x=b.left+((p?u.y:u.x)+.5)*b.width/cols,y=b.top+((p?6-u.x:u.y)+.5)*b.height/rows;if(Math.abs(r.left+r.width/2-x)>1||Math.abs(r.top+r.height/2-y)>1)out.push(`stale projection ${u.id}`);if(+e.querySelector('.hp').textContent!==u.hp)out.push(`stale HP ${u.id}`);}
+     return out;
+   });assert.deepEqual(issues,[]);
+ }
+ async function moveFrames(id,path){
+   const report=await page.evaluate(({id,path})=>{
+     const e=document.querySelector(`[data-unit-id="${id}"]`),p=innerHeight>=innerWidth,cols=p?5:7,rows=p?7:5,b=document.querySelector('#board').getBoundingClientRect();
+     const animations=e.getAnimations().filter(a=>a.effect?.target===e),frames=animations.flatMap(a=>a.effect.getKeyframes()).filter(f=>f.left!==undefined&&f.top!==undefined);
+     const expected=path.map(q=>({left:(p?q.y:q.x)/cols*100,top:(p?6-q.x:q.y)/rows*100}));
+     const values=frames.map(f=>({left:String(f.left).endsWith('%')?parseFloat(f.left):parseFloat(f.left)/b.width*100,top:String(f.top).endsWith('%')?parseFloat(f.top):parseFloat(f.top)/b.height*100}));return{expected,values};
+   },{id,path});assert.ok(report.values.length>=2,'move must expose real projected WAAPI keyframes');for(const f of report.values)assert.ok(report.expected.some(p=>Math.abs(p.left-f.left)<.1&&Math.abs(p.top-f.top)<.1),JSON.stringify(report));
+ }
+ async function bumpDirection(actorId,target){
+   const report=await page.evaluate(({actorId,target})=>{
+     const actor=Sekasoko.inspect().units.find(u=>u.id===actorId),token=document.querySelector(`[data-unit-id="${actorId}"] .token`),b=document.querySelector('#board').getBoundingClientRect(),p=innerHeight>=innerWidth,cols=p?5:7,rows=p?7:5;
+     const point=q=>({x:(p?q.y:q.x)*b.width/cols,y:(p?6-q.x:q.y)*b.height/rows}),a=point(actor),t=point(target);
+     const vectors=token.getAnimations().flatMap(a=>a.effect.getKeyframes()).filter(f=>f.transform&&f.transform!=='none').map(f=>{const m=new DOMMatrix(f.transform);return[m.e,m.f];});vectors.sort((a,b)=>Math.hypot(...b)-Math.hypot(...a));return{expected:[t.x-a.x,t.y-a.y],actual:vectors[0]};
+   },{actorId,target});assert.ok(report.actual&&Math.hypot(...report.actual)>1,'attack must expose a real lunge keyframe');const cosine=(report.expected[0]*report.actual[0]+report.expected[1]*report.actual[1])/(Math.hypot(...report.expected)*Math.hypot(...report.actual));assert.ok(cosine>.98,JSON.stringify(report));
+ }
+ async function effectAnchors(targetId,target){
+   const report=await page.evaluate(({targetId,target})=>{
+     const b=document.querySelector('#board').getBoundingClientRect(),p=innerHeight>=innerWidth,cols=p?5:7,rows=p?7:5,cx=b.left+((p?target.y:target.x)+.5)*b.width/cols,cy=b.top+((p?6-target.x:target.y)+.5)*b.height/rows,out=[];
+     const dying=document.querySelector(`[data-unit-id="${targetId}"]`);if(dying){const r=dying.getBoundingClientRect();if(Math.hypot(r.left+r.width/2-cx,r.top+r.height/2-cy)>Math.max(22,b.width/cols*.4))out.push('dying piece retained old projection');}
+     for(const e of document.querySelectorAll('.floating-damage')){const r=e.getBoundingClientRect();if(Math.abs(r.left+r.width/2-cx)>b.width/cols||Math.abs(r.top+r.height/2-cy)>b.height/rows)out.push('damage popup retained old projection');}return out;
+   },{targetId,target});assert.deepEqual(report,[]);
  }
  async function assertCTA(selector){
    const button=page.locator(selector);await button.scrollIntoViewIfNeeded();
@@ -99,7 +140,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
  async function rotateModal(selector){
    const before=await snapshot();
    for(const viewport of [PORTRAIT,LANDSCAPE,PORTRAIT]){
-     await page.setViewportSize(viewport);await assertCTA(selector);assert.deepEqual(await snapshot(),before);
+     await resize(viewport);await assertCTA(selector);assert.deepEqual(await snapshot(),before);
    }
  }
  async function attackKing(floor=1){
@@ -112,8 +153,8 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
    await page.locator(`[data-unit-id="${id}"]`).click();
  }
  try{
-   for(const viewport of viewports)await check(`${viewport.width}×${viewport.height}: .90 cells, visible HP/hit targets, portrait-above or landscape-right status and invariant board`,async()=>{
-     await load(viewport);const b=await boardRect();await select();await assertLayout();await fixed(b);
+   for(const viewport of viewports)await check(`${viewport.width}×${viewport.height}: projected .90 cells, upright HP, larger board, right/above HUD and invariant geometry`,async()=>{
+     await load(viewport);const b=await boardRect();await select();const metrics=await assertLayout();await fixed(b);const old=BASELINE003[`${viewport.width}x${viewport.height}`];assert.ok(b.width*b.height>old.width*old.height,`board area must grow from VER.003 at ${viewport.width}x${viewport.height}`);comparisons.push({viewport,old,actual:metrics,areaGrowth:b.width*b.height/(old.width*old.height)});await page.screenshot({path:path.join(artifacts,`${viewport.width}x${viewport.height}-initial-knight.png`)});
      const enemy=await page.evaluate(()=>__qaState.units.find(u=>u.type==='goblin'&&u.side==='enemy').id);await page.locator(`[data-unit-id="${enemy}"]`).click();await fixed(b);await assertLayout();
      await page.locator(`[data-unit-id="${enemy}"]`).click();await fixed(b);await assertLayout();
      await page.evaluate(()=>{const a=__qaState.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;});await select('archer');await page.locator('#normalAttackBtn').click();await fixed(b);await assertLayout();
@@ -123,12 +164,56 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      await page.screenshot({path:path.join(artifacts,`${viewport.width}x${viewport.height}.png`)});
      const before=await snapshot();await page.locator('.cell[data-x="3"][data-y="3"]').click();await ready();assert.equal((await snapshot()).totalActions,before.totalActions+2);await fixed(b);await assertLayout();
    });
+   await check('All 35 display centers obey the independent inverse transform and asymmetric real clicks preserve logical rules',async()=>{
+     for(const viewport of [PORTRAIT,LANDSCAPE]){
+       await load(viewport);const portrait=viewport.height>=viewport.width;
+       const initial=await snapshot(),initialBoard=await boardRect();
+       for(const [side,col,row] of portrait?[['player',2,6],['enemy',2,0]]:[['player',0,2],['enemy',6,2]]){
+         const k=initial.units.find(u=>u.side===side&&u.type==='king'),r=await page.locator(`[data-unit-id="${k.id}"]`).boundingBox(),cols=portrait?5:7,rows=portrait?7:5;
+         assert.ok(Math.abs(r.x+r.width/2-(initialBoard.x+(col+.5)*initialBoard.width/cols))<1);assert.ok(Math.abs(r.y+r.height/2-(initialBoard.y+(row+.5)*initialBoard.height/rows))<1);
+       }
+       const anchor=await page.evaluate(()=>{
+         const s=__qaState,id=s.units[0].id,defs=[['king','player',0,2],['knight','player',1,0],['archer','player',2,4],['mage','player',3,0],['king','enemy',6,2],['goblin','enemy',4,1],['slime','enemy',5,3],['orc','enemy',6,4]];
+         s.units=defs.map(([type,side,x,y],i)=>({id:i?`qa-asym-${i}`:id,type,side,x,y,hp:Sekasoko.MASTER[type].hp,maxHp:Sekasoko.MASTER[type].hp}));return id;
+       });
+       await page.locator(`[data-unit-id="${anchor}"]`).click();await page.locator(`[data-unit-id="${anchor}"]`).click();await assertLayout();
+       const before=await snapshot(),b=await boardRect(),cols=portrait?5:7,rows=portrait?7:5;
+       for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+         const x=portrait?6-row:col,y=portrait?col:row,px=b.x+(col+.5)*b.width/cols,py=b.y+(row+.5)*b.height/rows;
+         const logical=await page.evaluate(({px,py})=>{const e=document.elementsFromPoint(px,py).find(e=>e.matches('.cell'));return e?{x:+e.dataset.x,y:+e.dataset.y}:null;},{px,py});assert.deepEqual(logical,{x,y});
+         await page.mouse.click(px,py);const occupant=before.units.find(u=>u.x===x&&u.y===y);
+         if(occupant){assert.equal(await page.locator('.unit.is-selected').getAttribute('data-unit-id'),occupant.id);await page.mouse.click(px,py);}else assert.equal(await page.locator('.unit.is-selected').count(),0);
+         assert.deepEqual(await snapshot(),before);
+       }
+       const point=(x,y)=>({x:b.x+((portrait?y:x)+.5)*b.width/cols,y:b.y+((portrait?6-x:y)+.5)*b.height/rows});
+       await page.mouse.click(...Object.values(point(1,0)));assert.equal(await page.locator('.unit.is-selected').getAttribute('data-unit-id'),'qa-asym-1');
+       await page.mouse.click(...Object.values(point(2,1)));await ready();const after=await snapshot();assert.equal(after.totalActions,before.totalActions+2);assert.deepEqual([after.units.find(u=>u.id==='qa-asym-1').x,after.units.find(u=>u.id==='qa-asym-1').y],[2,1]);await assertLayout();
+       await page.screenshot({path:path.join(artifacts,`asymmetric-${viewport.width}x${viewport.height}.png`)});
+     }
+   });
+   await check('Computed team gradient is red north / blue south in portrait and blue west / red east in landscape',async()=>{
+     for(const viewport of [PORTRAIT,LANDSCAPE]){
+       await load(viewport);const portrait=viewport.height>=viewport.width;
+       const gradients=await page.evaluate(()=>{
+         const out=[];for(const e of [document.querySelector('#board'),document.querySelector('.board-skin')].filter(Boolean))for(const pseudo of [null,'::before','::after']){
+           const text=getComputedStyle(e,pseudo).backgroundImage;let start=0;
+           while((start=text.indexOf('linear-gradient(',start))!==-1){let depth=1,end=start+16;for(;end<text.length&&depth;end++){if(text[end]==='(')depth++;else if(text[end]===')')depth--;}out.push(text.slice(start,end));start=end;}
+         }return out;
+       });
+       const correct=gradients.some(g=>{
+         const angleMatch=g.match(/^linear-gradient\(([-\d.]+)deg/),angle=angleMatch?+angleMatch[1]:180,colors=[...g.matchAll(/rgba?\(([^)]+)\)/g)].map(m=>m[1].split(',').map(Number));if(colors.length<2)return false;
+         let first=colors[0],last=colors.at(-1);const red=c=>c[0]>c[2]+5,blue=c=>c[2]>c[0]+5;
+         if(portrait){if(angle===0)[first,last]=[last,first];else if(angle!==180)return false;return red(first)&&blue(last);}
+         if(angle===270)[first,last]=[last,first];else if(angle!==90)return false;return blue(first)&&red(last);
+       });assert.ok(correct,`team gradient did not match physical orientation: ${JSON.stringify(gradients)}`);
+     }
+   });
    await check('Portrait→landscape→portrait retains selected stats, exact highlights, damaged HP, candidates and full state',async()=>{
      await load();await fixture();await select();
      const before=await snapshot(),presentation=await selectedPresentation();
      assert.match(presentation.text,/騎士/);assert.match(presentation.text,/2/);
      for(const viewport of [LANDSCAPE,PORTRAIT]){
-       await page.setViewportSize(viewport);await assertLayout();
+       await resize(viewport);await assertLayout();
        assert.deepEqual(await snapshot(),before);assert.deepEqual(await selectedPresentation(),presentation);
        assert.deepEqual((await snapshot()).candidates,['slime','goblin','slime']);
      }
@@ -142,7 +227,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      assert.ok(presentation.targets.length>0,'ranged fixture must expose red enemy targets');
      assert.ok(await page.locator('.cell.attackable').count()>0);
      for(const viewport of [LANDSCAPE,PORTRAIT]){
-       await page.setViewportSize(viewport);await assertLayout();
+       await resize(viewport);await assertLayout();
        assert.deepEqual(await snapshot(),before);assert.deepEqual(await selectedPresentation(),presentation);
      }
      const target=before.units.find(u=>u.side==='enemy'&&u.type==='slime'&&u.x===4&&u.y===2);
@@ -157,12 +242,37 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        await load();await fixture();await select();const before=await snapshot();
        await page.locator('.cell[data-x="3"][data-y="1"]').click();
        if(rotating){
-         await page.waitForFunction(()=>document.querySelector('#board').getAnimations({subtree:true}).some(a=>a.playState==='running'));
+         await stage('move');const actorId=before.units.find(u=>u.type==='knight'&&u.side==='player').id;await moveFrames(actorId,[{x:1,y:1},{x:2,y:1},{x:3,y:1}]);
          const inFlight=await snapshot();assert.equal(inFlight.totalActions,before.totalActions+1);
-         await page.setViewportSize(LANDSCAPE);assert.deepEqual(await snapshot(),inFlight);
-         await page.setViewportSize(PORTRAIT);
+         await resize(LANDSCAPE);assert.deepEqual(await snapshot(),inFlight);await projectedUnits();
+         await resize(PORTRAIT);await projectedUnits();await page.screenshot({path:path.join(artifacts,'move-rotation.png')});
        }
        await ready();const after=await snapshot();assert.equal(after.totalActions,before.totalActions+2);
+       await page.waitForTimeout(750);assert.deepEqual(await snapshot(),after);return after;
+     }
+     const control=await perform(false),rotated=await perform(true);assert.deepEqual(rotated,control);await assertLayout();
+   });
+   for(const lethal of [false,true])await check(`${lethal?'Death':'Attack'} animation rotation reprojects effects, matches control state and runs AI once${lethal?' with one candidate notification':''}`,async()=>{
+     async function perform(rotating){
+       await load(rotating?PORTRAIT:LANDSCAPE);
+       await page.evaluate(lethal=>{
+         const s=__qaState,a=s.units.find(u=>u.type==='archer'&&u.side==='player');a.x=2;a.y=2;
+         const k=s.units.find(u=>u.type==='king'&&u.side==='enemy');k.x=6;k.y=4;
+         const target=s.units.find(u=>u.type==='goblin'&&u.side==='enemy');target.x=4;target.y=1;target.hp=lethal?1:5;
+         const slimes=s.units.filter(u=>u.type==='slime'&&u.side==='enemy');slimes[0].x=5;slimes[0].y=0;slimes[1].x=6;slimes[1].y=3;
+         globalThis.__qaCandidateNotifications=[];
+         new MutationObserver(records=>{for(const record of records)if(record.type==='childList'&&document.querySelector('#toast').textContent.startsWith('駒入手！'))__qaCandidateNotifications.push(document.querySelector('#toast').textContent);}).observe(document.querySelector('#toast'),{childList:true,subtree:true});
+       },lethal);
+       const actor=await select('archer');await page.locator('#normalAttackBtn').click();const before=await snapshot(),target=before.units.find(u=>u.type==='goblin'&&u.side==='enemy');
+       await page.locator(`[data-unit-id="${target.id}"]`).click();await stage('attack');await bumpDirection(actor,target);
+       if(lethal)await stage('death');
+       if(rotating){
+         const inFlight=await snapshot();assert.equal(inFlight.totalActions,before.totalActions+1);
+         await resize(LANDSCAPE);assert.deepEqual(await snapshot(),inFlight);await projectedUnits();if(lethal)await effectAnchors(target.id,target);
+         await page.screenshot({path:path.join(artifacts,`${lethal?'death':'attack'}-rotation.png`)});
+       }
+       await ready();const after=await snapshot();assert.equal(after.totalActions,before.totalActions+2);assert.equal(after.roster.length,before.roster.length);await projectedUnits();
+       if(lethal){assert.deepEqual(after.candidates,['goblin']);assert.equal(await page.locator(`[data-unit-id="${target.id}"]`).count(),0);const notifications=await page.evaluate(()=>__qaCandidateNotifications);assert.equal(notifications.length,1);assert.match(notifications[0],/ゴブリン/);}else assert.equal(after.units.find(u=>u.id===target.id).hp,target.hp-2);
        await page.waitForTimeout(750);assert.deepEqual(await snapshot(),after);return after;
      }
      const control=await perform(false),rotated=await perform(true);assert.deepEqual(rotated,control);await assertLayout();
@@ -174,8 +284,8 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        if(rotating){
          await page.waitForFunction(()=>Sekasoko.inspect().phase==='enemy'&&document.querySelector('#waitBtn').disabled);
          const waiting=await snapshot();assert.equal(waiting.totalActions,before.totalActions+1);
-         await page.setViewportSize(LANDSCAPE);assert.deepEqual(await snapshot(),waiting);
-         await page.setViewportSize(PORTRAIT);
+         await resize(LANDSCAPE);assert.deepEqual(await snapshot(),waiting);
+         await resize(PORTRAIT);
        }
        await ready();const after=await snapshot();assert.equal(after.totalActions,before.totalActions+2);
        await page.waitForTimeout(750);assert.deepEqual(await snapshot(),after);return after;
@@ -262,5 +372,5 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
      assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
    });
    console.log(`\n${passed}/${passed} responsive checks passed`);
- }finally{await browser.close();}
+ }finally{fs.writeFileSync(path.join(artifacts,'ver004-comparison.json'),JSON.stringify(comparisons,null,2)+'\n');await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

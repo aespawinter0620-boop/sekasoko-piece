@@ -40,23 +40,14 @@ jobs:
       - name: Verify orientation, viewport fit and state preservation
         run: npm run test:responsive
 
-  deploy:
+  package_site:
     needs: verify
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    timeout-minutes: 5
     steps:
       - name: Check out verified source
         uses: actions/checkout@v4
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
       - name: Prepare public game files
         run: |
           mkdir -p _site
@@ -68,6 +59,22 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  deploy:
+    needs: package_site
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

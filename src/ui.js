@@ -10,6 +10,61 @@ let state = Engine.createRun(), selectedId = null, busy = false, generation = 0;
 let modalMode = '', returnFocus = null, toastTimer;
 let attackMode = false;
 const unitElements = new Map();
+const orientationMedia = matchMedia('(orientation: portrait)');
+let portraitView = orientationMedia.matches, projectionRevision = 0, presentationContext = null;
+const activeAnimations = new Set();
+// Pure display projection; battle coordinates always remain 7 × 5.
+const Display = Object.freeze({
+  toDisplay: ({x,y}, portrait=false) => portrait ? {col:y,row:6-x} : {col:x,row:y},
+  fromDisplay: ({col,row}, portrait=false) => portrait ? {x:6-row,y:col} : {x:col,y:row},
+  dimensions: (portrait=false) => portrait ? {cols:5,rows:7} : {cols:7,rows:5}
+});
+Object.defineProperty(globalThis.Sekasoko,'display',{value:Display,enumerable:true});
+const viewportSignature = () => `${orientationMedia.matches}:${innerWidth}:${innerHeight}:${window.visualViewport?.width}:${window.visualViewport?.height}`;
+let lastViewportSignature = viewportSignature();
+function displayPosition(point, anchorX=0, anchorY=0) {
+  const {col,row}=Display.toDisplay(point,portraitView), {cols,rows}=Display.dimensions(portraitView);
+  return {left:`${(col+anchorX)/cols*100}%`,top:`${(row+anchorY)/rows*100}%`};
+}
+function displayLabel(point) {
+  const {col,row}=Display.toDisplay(point,portraitView);
+  return `${col+1}列 ${row+1}行`;
+}
+function placeUnit(el, point) {
+  const {col,row}=Display.toDisplay(point,portraitView);
+  Object.assign(el.style,displayPosition(point));
+  el.dataset.col=col;el.dataset.row=row;el.dataset.x=point.x;el.dataset.y=point.y;
+}
+function paintProjection() {
+  const {cols,rows}=Display.dimensions(portraitView);
+  board.style.setProperty('--columns',cols);board.style.setProperty('--rows',rows);
+  board.dataset.orientation=portraitView?'portrait':'landscape';
+  board.setAttribute('aria-label',`${cols}列 ${rows}行の戦闘盤面`);
+  const ordered=[...cells.children];
+  for(const cell of ordered) {
+    const point={x:+cell.dataset.x,y:+cell.dataset.y}, {col,row}=Display.toDisplay(point,portraitView);
+    cell.dataset.col=col;cell.dataset.row=row;
+    cell.style.gridColumn=col+1;cell.style.gridRow=row+1;
+    cell.classList.toggle('edge-east',col===cols-1);cell.classList.toggle('edge-south',row===rows-1);
+    cell.classList.toggle('is-dark',(col+row)%2===1);
+    cell.innerHTML=row===0?`<span class="coord" aria-hidden="true">${col+1}</span>`:'';
+  }
+  ordered.sort((a,b)=>(+a.dataset.row*cols + +a.dataset.col)-(+b.dataset.row*cols + +b.dataset.col));
+  cells.append(...ordered);
+}
+function refreshPresentation() {
+  const signature=viewportSignature();
+  if(signature===lastViewportSignature)return;
+  lastViewportSignature=signature;portraitView=orientationMedia.matches;projectionRevision++;
+  // Engine.act has already committed. Reconcile only presentation, never actions or AI.
+  if(presentationContext)presentationContext.skipVisual=true;
+  for(const animation of activeAnimations)animation.cancel();
+  pieceLayer.querySelectorAll('.floating-damage').forEach(el=>el.remove());
+  paintProjection();paintUnits();paintInspector();paintHighlights();
+}
+window.addEventListener('resize',refreshPresentation);
+orientationMedia.addEventListener('change',refreshPresentation);
+window.visualViewport?.addEventListener('resize',refreshPresentation);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const find = id => state.units.find(u => u.id === id);
 const selected = () => find(selectedId);
@@ -54,9 +109,11 @@ function phaseLabel() {
 for (let y=0;y<5;y++) for (let x=0;x<7;x++) {
   const cell = document.createElement('button');
   cell.className = 'cell'; cell.dataset.x = x; cell.dataset.y = y;
-  cell.setAttribute('aria-label', `${x+1}列 ${y+1}行`);
-  if (y===0) cell.innerHTML=`<span class="coord" aria-hidden="true">${x+1}</span>`;
-  cell.addEventListener('click', () => cellTap(x,y)); cells.appendChild(cell);
+  cell.addEventListener('click', () => {
+    const point=Display.fromDisplay({col:+cell.dataset.col,row:+cell.dataset.row},portraitView);
+    cellTap(point.x,point.y);
+  });
+  cells.appendChild(cell);
 }
 function paintHighlights() {
   const u = selected();
@@ -69,7 +126,7 @@ function paintHighlights() {
     c.classList.toggle('legal',move); c.classList.toggle('attackable',target);
     c.classList.toggle('selected',!!u&&u.x===x&&u.y===y);
     c.disabled = busy || state.phase!=='player';
-    c.setAttribute('aria-label',`${x+1}列 ${y+1}行${move?' 移動可能':''}${target?' 攻撃可能':''}`);
+    c.setAttribute('aria-label',`${displayLabel({x,y})}${move?' 移動可能':''}${target?' 攻撃可能':''}`);
   }
   for (const [id,el] of unitElements) {
     const piece=find(id);
@@ -77,7 +134,7 @@ function paintHighlights() {
     el.classList.toggle('is-target',targets.some(t=>t.id===id));
     el.disabled=busy || !['player','enemy'].includes(state.phase);
     el.setAttribute('aria-pressed',id===selectedId?'true':'false');
-    if (piece) el.setAttribute('aria-label',`${piece.side==='player'?'味方':'敵'}の${MASTER[piece.type].name} HP ${piece.hp}/${piece.maxHp} ${piece.x+1}列 ${piece.y+1}行${targets.some(t=>t.id===id)?' 攻撃可能':''}`);
+    if (piece) el.setAttribute('aria-label',`${piece.side==='player'?'味方':'敵'}の${MASTER[piece.type].name} HP ${piece.hp}/${piece.maxHp} ${displayLabel(piece)}${targets.some(t=>t.id===id)?' 攻撃可能':''}`);
   }
 }
 function paintUnits() {
@@ -89,10 +146,10 @@ function paintUnits() {
     if (!el) {
       el=document.createElement('button'); el.className=`unit ${u.side} ${u.type==='king'?'king':''}`;
       el.dataset.unitId=u.id;
-      el.innerHTML=`<span class="token"><span class="emoji" aria-hidden="true">${m.icon}</span><span class="unit-name">${m.name}</span><span class="hp-track"><i></i></span><span class="hp"></span></span>`;
+      el.innerHTML=`<span class="token"><span class="emoji" aria-hidden="true">${m.icon}</span><span class="hp-track"><i></i></span><span class="hp"></span></span>`;
       el.addEventListener('click',()=>unitTap(u.id)); pieceLayer.appendChild(el);unitElements.set(u.id,el);
     }
-    el.style.left=`${u.x/7*100}%`;el.style.top=`${u.y/5*100}%`;
+    placeUnit(el,u);
     el.querySelector('.hp').textContent=u.hp;
     el.querySelector('.hp-track i').style.width=`${u.hp/u.maxHp*100}%`;
   }
@@ -149,42 +206,76 @@ function cellTap(x,y) {
     else toast('青く光るマスへ移動できるよ。');
   } else {attackMode=false;selectedId=null;render();}
 }
-async function animateEvents(events) {
+function canAnimate(context) {
+  return !context.skipVisual && context.revision===projectionRevision && context.generation===generation;
+}
+async function playVisual(element, frames, options, context) {
+  if(!element?.isConnected||!canAnimate(context))return false;
+  const animation=element.animate(frames,options);
+  activeAnimations.add(animation);
+  try {
+    await animation.finished;
+    return canAnimate(context)&&element.isConnected;
+  } catch(error) {
+    // Layout changes cancel WAAPI promises. Continue later nonvisual events exactly once.
+    if(error.name!=='AbortError')console.error(error);
+    return false;
+  } finally {
+    activeAnimations.delete(animation);animation.cancel();
+  }
+}
+async function animateEvents(events, context) {
   for(const e of events) {
-    if (e.type==='move') {
-      const el=unitElements.get(e.unitId);if(!el)continue;
-      const points=[e.from,...e.path];
-      await el.animate(points.map(p=>({left:`${p.x/7*100}%`,top:`${p.y/5*100}%`})),{duration:reducedMotion?1:Math.max(240,e.path.length*145),easing:'ease-in-out',fill:'forwards'}).finished;
-      el.style.left=`${e.to.x/7*100}%`;el.style.top=`${e.to.y/5*100}%`;el.getAnimations().forEach(a=>a.cancel());
+    if(context.generation!==generation)return;
+    if(e.type==='candidate') {
+      toast(`駒入手！ ${MASTER[e.unitType].icon} ${MASTER[e.unitType].name}（勝利で確定）`);
+      continue;
     }
-    if (e.type==='attack') {
-      const attacker=unitElements.get(e.unitId), target=unitElements.get(e.targetId);
+    if(!canAnimate(context))continue;
+    if(e.type==='move') {
+      const el=unitElements.get(e.unitId);if(!el)continue;
+      board.dataset.animation='move';
+      const complete=await playVisual(el,[e.from,...e.path].map(point=>displayPosition(point)),{duration:reducedMotion?1:Math.max(240,e.path.length*145),easing:'ease-in-out',fill:'forwards'},context);
+      // A canceled old projection must never overwrite the reconciled position.
+      if(complete)placeUnit(el,e.to);
+    }
+    if(e.type==='attack') {
+      const attacker=unitElements.get(e.unitId),target=unitElements.get(e.targetId);
       if(!attacker||!target)continue;
-      const a=attacker.getBoundingClientRect(),t=target.getBoundingClientRect();
-      const dx=t.x-a.x,dy=t.y-a.y,dist=Math.hypot(dx,dy)||1;
-      const bump=attacker.querySelector('.token');
-      await bump.animate([{transform:'translate(0,0)'},{transform:`translate(${dx/dist*15}px,${dy/dist*15}px) scale(1.06)`},{transform:'translate(0,0)'}],{duration:reducedMotion?1:220,easing:'ease-out'}).finished;
+      board.dataset.animation='attack';
+      const actorPoint=context.positions.get(e.unitId),targetPoint=context.positions.get(e.targetId);
+      if(!actorPoint||!targetPoint)continue;
+      const a=Display.toDisplay(actorPoint,portraitView),t=Display.toDisplay(targetPoint,portraitView);
+      const {cols,rows}=Display.dimensions(portraitView),rect=board.getBoundingClientRect();
+      const dx=(t.col-a.col)/cols*rect.width,dy=(t.row-a.row)/rows*rect.height,dist=Math.hypot(dx,dy)||1;
+      const complete=await playVisual(attacker.querySelector('.token'),[{transform:'translate(0,0)'},{transform:`translate(${dx/dist*15}px,${dy/dist*15}px) scale(1.06)`},{transform:'translate(0,0)'}],{duration:reducedMotion?1:220,easing:'ease-out'},context);
+      if(!complete||!target.isConnected)continue;
       const damage=document.createElement('span');damage.className='floating-damage';damage.textContent=`−${e.damage}`;
-      damage.style.left=`${(parseFloat(target.style.left)||0)+5}%`;damage.style.top=`${(parseFloat(target.style.top)||0)+4}%`;pieceLayer.appendChild(damage);
+      Object.assign(damage.style,displayPosition(targetPoint,.5,.35));pieceLayer.appendChild(damage);
       const remaining=find(e.targetId);target.querySelector('.hp').textContent=remaining?remaining.hp:0;
       target.querySelector('.hp-track i').style.width=`${remaining?remaining.hp/remaining.maxHp*100:0}%`;
-      await target.querySelector('.token').animate([{transform:'translateX(0)',filter:'brightness(2)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:reducedMotion?1:220}).finished;
+      await playVisual(target.querySelector('.token'),[{transform:'translateX(0)',filter:'brightness(2)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:reducedMotion?1:220},context);
       setTimeout(()=>damage.remove(),700);
     }
     if(e.type==='death') {
-      const el=unitElements.get(e.unitId);if(el) {
-        await el.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:230,fill:'forwards'}).finished;
+      const el=unitElements.get(e.unitId),point=context.positions.get(e.unitId);
+      if(el&&point) {
+        board.dataset.animation='death';placeUnit(el,point);
+        await playVisual(el,[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:230,fill:'forwards'},context);
       }
     }
-    if(e.type==='candidate') toast(`駒入手！ ${MASTER[e.unitType].icon} ${MASTER[e.unitType].name}（勝利で確定）`);
   }
 }
+
 async function doAction(action) {
   if(busy||!['player','enemy'].includes(state.phase))return;
-  const token=generation;const result=Engine.act(state,action);
+  const token=generation;
+  const context={generation:token,revision:projectionRevision,skipVisual:false,positions:new Map(state.units.map(u=>[u.id,{x:u.x,y:u.y}]))};
+  const result=Engine.act(state,action);
   if(!result.ok){toast(result.error);return;}
-  attackMode=false;busy=true;render(true);
-  try {await animateEvents(result.events);} catch(error) {console.error(error);}
+  presentationContext=context;attackMode=false;busy=true;render(true);
+  try {await animateEvents(result.events,context);} catch(error) {console.error(error);}
+  finally {if(presentationContext===context)presentationContext=null;delete board.dataset.animation;}
   if(token!==generation)return;
   busy=false;selectedId=null;render();
   if(['victory','defeat','clear'].includes(state.phase)) {await sleep(reducedMotion?1:300);showResult();}
@@ -241,7 +332,7 @@ function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.003 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.004 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
@@ -251,7 +342,7 @@ function resetRun() {
   closeModal();render();toast('新しい探索が始まった。1Fから、もう一度！');
 }
 function showRules() {
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.003</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大3体、コスト合計10以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.004</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大3体、コスト合計10以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);
@@ -277,7 +368,7 @@ document.addEventListener('keydown',event=>{
   if(event.shiftKey&&(document.activeElement===first||document.activeElement===modal)){event.preventDefault();last.focus();}
   else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===modal)){event.preventDefault();first.focus();}
 });
-render();
+paintProjection();render();
 // Read-only snapshot allows reproducible QA without affecting gameplay.
 globalThis.Sekasoko.inspect = () => JSON.parse(JSON.stringify(state));
 })();

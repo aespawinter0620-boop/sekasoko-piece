@@ -1,8 +1,8 @@
 {
   "name": "sekasoko-piece",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
-  "description": "セカソコ！～手駒編～ VER.003 standalone board battle prototype",
+  "description": "セカソコ！～手駒編～ VER.004 standalone board battle prototype",
   "scripts": {
     "build": "python3 scripts/build.py",
     "check": "python3 scripts/build.py --check",

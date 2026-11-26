@@ -24,9 +24,9 @@ assert.notEqual(qaHTML,html);
  async function win(floor=1){await page.evaluate(floor=>{const s=__qaState;s.floor=floor;const a=s.units.find(u=>u.side==='player'&&u.type==='archer');a.x=3;a.y=2;const k=s.units.find(u=>u.side==='enemy'&&u.type==='king');k.x=6;k.y=2;k.hp=1;},floor);await select('archer');const king=await page.evaluate(()=>__qaState.units.find(u=>u.side==='enemy'&&u.type==='king').id);await page.locator(`[data-unit-id="${king}"]`).click();}
  try{
   await load();
-  await check('Offline VER.003 initializes 35 cells, eight units, closed menu/log and no permanent loot panel',async()=>{
+  await check('Offline VER.004 initializes 35 cells, eight units, closed menu/log and no permanent loot panel',async()=>{
     assert.equal(await page.locator('.cell').count(),35);assert.equal(await page.locator('.unit').count(),8);const s=await state();assert.equal(s.floor,1);assert.equal(s.phase,'player');
-    assert.equal(await page.locator('#menuPanel').isVisible(),false);assert.equal(await page.locator('#logPanel').isVisible(),false);assert.equal(await page.locator('#lootList,#lootCount').count(),0);
+    assert.equal(await page.locator('#board .unit-name').evaluateAll(es=>es.every(e=>!e.checkVisibility({checkVisibilityCSS:true}))),true);assert.match(await page.locator('.unit.player').first().getAttribute('aria-label'),/王/);assert.equal(await page.locator('#menuPanel').isVisible(),false);assert.equal(await page.locator('#logPanel').isVisible(),false);assert.equal(await page.locator('#lootList,#lootCount').count(),0);
   });
   await check('Ally selection shows art, stats and three action buttons without moving the board',async()=>{
     const b=await rect();await select();await fixed(b);assert.match(await page.locator('#inspectorBody').textContent(),/騎士/);
