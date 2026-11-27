@@ -280,7 +280,6 @@ const Engine = (() => {
     if (!active(state)) return [];
     const piece = handFor(state, state.phase).find(other => other.id === unitId);
     if (!piece || piece.type === 'king' || piece.location !== 'hand' || piece.side !== state.phase || piece.currentSide !== state.phase) return [];
-    if (state.units.filter(other => other.hp > 0 && other.side === state.phase).length >= ARMY_RULES.maxHandPieces + 1) return [];
     const occupied = new Set(state.units.map(other => `${other.x},${other.y}`));
     const squares = [];
     for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) {

@@ -1,8 +1,8 @@
 {
   "name": "sekasoko-piece",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "private": true,
-  "description": "セカソコ！～手駒編～ VER.007 capture and redeployment board battle prototype",
+  "description": "セカソコ！～手駒編～ VER.008 borderless icon and unrestricted battle redeployment",
   "scripts": {
     "build": "python3 scripts/build.py",
     "check": "python3 scripts/build.py --check",

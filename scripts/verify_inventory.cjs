@@ -108,7 +108,7 @@ for (let game = 0; game < 80; game++) {
     }
     assert.equal(new Set(s.units.map(p => p.x + ',' + p.y)).size, s.units.length);
     for (const side of ['player', 'enemy']) {
-      assert.ok(s.units.filter(p => p.side === side).length <= 12);
+      assert.ok(s.units.length <= 35);
     }
     for (const id of roster) assert.equal(s.roster.filter(p => p.id === id).length, 1);
     assert.equal(all.length, 24 - (terminal ? 1 : 0));

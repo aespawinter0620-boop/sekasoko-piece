@@ -142,7 +142,7 @@ function fight(floor, seed, policy, enemyTimings, allActTimings) {
         return original&&!lostKings.has(u.id)&&u.type===original.type&&u.originSide===original.originSide&&u.rosterId===original.rosterId&&u.side===u.currentSide;
       }) && state.units.every(u=>u.location==='board'&&Number.isInteger(u.x)&&Number.isInteger(u.y)&&u.x>=0&&u.x<7&&u.y>=0&&u.y<5&&u.hp>0&&u.hp<=MASTER[u.type].hp);
     for(const allegiance of ['player','enemy']) {
-      valid=valid&&state.units.filter(u=>u.side===allegiance).length<=12&&state.hands[allegiance].every(u=>u.type!=='king'&&u.side===allegiance&&u.currentSide===allegiance&&u.location==='hand'&&u.x===null&&u.y===null&&
+      valid=valid&&state.units.length<=35&&state.hands[allegiance].every(u=>u.type!=='king'&&u.side===allegiance&&u.currentSide===allegiance&&u.location==='hand'&&u.x===null&&u.y===null&&
         (u.hp===0||(terminal&&u.originSide==='player'&&allegiance==='player'&&u.hp>0&&u.hp<=MASTER[u.type].hp)));
     }
     valid=valid&&initialRoster.every(owned=>state.roster.filter(r=>r.id===owned.id&&r.type===owned.type).length===1);

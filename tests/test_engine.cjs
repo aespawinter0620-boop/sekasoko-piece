@@ -37,7 +37,7 @@ function assertInventory(s, expectedIds) {
   if(expectedIds) assert.deepEqual(pieces.map(p=>p.id).sort(),[...expectedIds].sort());
   assert.equal(new Set(s.units.map(p=>`${p.x},${p.y}`)).size,s.units.length);
   for(const side of ['player','enemy']) {
-    assert.ok(s.units.filter(p=>p.side===side).length<=12);
+    assert.ok(s.units.length<=35);
     for(const p of s.hands[side]) {
       assert.equal(p.side,side); assert.equal(p.currentSide,side); assert.equal(p.location,'hand');
       assert.equal(p.x,null); assert.equal(p.y,null); assert.notEqual(p.type,'king');
@@ -882,17 +882,14 @@ test('Deployment rejects missing, foreign, board, king, occupied, fractional, ou
   assert.equal(E.act(ended,{type:'deploy',unitId:'captured',x:3,y:2}).ok,false); assert.deepEqual(json(ended),endedBefore);
 });
 
-test('The twelve-board-unit cap counts the king, ignores hands and opens immediately when an ally is captured', () => {
+test('A captured piece can become the thirteenth player unit without changing initial formation limits', () => {
   const s=E.createRun(), actor=s.units.find(u=>u.side==='player'&&u.type==='archer');
   const target=s.units.find(u=>u.side==='enemy'&&u.x===4&&u.y===4); target.hp=1;
   action(s,{type:'attack',unitId:actor.id,targetId:target.id}); action(s,{type:'wait'});
   assert.equal(s.hands.player.length,1); assert.equal(s.units.filter(u=>u.side==='player').length,12);
-  assert.deepEqual(json(E.deploymentSquares(s,target.id)),[]);
-  const before=json(s); assert.equal(E.act(s,{type:'deploy',unitId:target.id,x:3,y:2}).ok,false); assert.deepEqual(json(s),before);
-  action(s,{type:'wait'}); const king=s.units.find(u=>u.side==='enemy'&&u.type==='king'); king.x=3; king.y=4; actor.hp=1;
-  action(s,{type:'attack',unitId:king.id,targetId:actor.id}); assert.equal(s.units.filter(u=>u.side==='player').length,11);
+  assert.ok(E.deploymentSquares(s,target.id).some(p=>p.x===3&&p.y===2));
   action(s,{type:'deploy',unitId:target.id,x:3,y:2});
-  assert.equal(s.units.filter(u=>u.side==='player').length,12); assert.equal(s.hands.enemy.length,1); assertInventory(s);
+  assert.equal(s.units.filter(u=>u.side==='player').length,13); assert.equal(s.hands.player.length,0); assert.equal(s.formation.length,11); assertInventory(s);
 });
 
 test('Hands have no eleven-piece limit and deploying a captive has no formation-cost charge', () => {
@@ -1049,14 +1046,15 @@ test('Returning a surviving original ally at defeat is not predicted as attack d
   assert.equal(p.killedIds.includes('owned'),false); assert.equal(p.events.some(e=>e.type==='capture'&&e.unitId==='owned'),false);
 });
 
-test('AI never deploys above twelve board units even with a valid captured individual in its hand', () => {
+test('Enemy deployment also permits a thirteenth unit and AI evaluation remains non-mutating', () => {
   const s=E.createRun(); s.phase='enemy';
   const captive=s.units.find(u=>u.side==='player'&&u.type==='knight'); s.units=s.units.filter(u=>u.id!==captive.id);
   captive.side='enemy'; captive.currentSide='enemy'; captive.location='hand'; captive.hp=0; captive.x=null; captive.y=null;
   s.hands.enemy.push(captive);
-  assert.equal(s.units.filter(u=>u.side==='enemy').length,12); assert.deepEqual(json(E.deploymentSquares(s,captive.id)),[]);
-  const before=json(s), selected=E.chooseAI(s); assert.deepEqual(json(s),before); assert.notEqual(selected.type,'deploy');
-  action(s,selected); assertInventory(s);
+  assert.equal(s.units.filter(u=>u.side==='enemy').length,12); assert.ok(E.deploymentSquares(s,captive.id).some(p=>p.x===3&&p.y===2));
+  const before=json(s), selected=E.chooseAI(s); assert.deepEqual(json(s),before);
+  action(json(s),selected);
+  action(s,{type:'deploy',unitId:captive.id,x:3,y:2}); assert.equal(s.units.filter(u=>u.side==='enemy').length,13); assertInventory(s);
 });
 
 
