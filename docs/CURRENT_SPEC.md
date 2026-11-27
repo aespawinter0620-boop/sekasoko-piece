@@ -381,7 +381,7 @@ VER.008では変更箇所の確認と既存の必須CIのみを実施する。�
 
 対応コードのローカル検証：`npm run check` と `npm run test:engine`（73/73）合格。味方・敵とも12体から13体への再出撃、初期編成制限の維持を既存テストで確認。アイコンの白い外周除去と角丸加工なしの出力を目視確認。原本PNGは変更していない。
 
-既存必須CI・Pagesの公開結果：確認中。
+既存必須CIは全項目合格し、Pages配信も成功。公開URLでVER.008の起動、初期12体ずつ、待機と敵応答1往復、未捕捉例外0を確認。HTML・180pxアイコン・32px faviconはHTTP 200で検証済みファイルと完全一致。公開CI：https://github.com/aespawinter0620-boop/sekasoko-piece/actions/runs/46028790799
 
 iPhone実機Safari／WebKitとホーム画面追加の実機表示は未検証。既存の軍団戦観測と画面記録はVER.007時点の資料として保持する（`docs/observations/VER007.md`、`docs/screenshots/ver007/README.md`）。
 

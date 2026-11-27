@@ -22,11 +22,11 @@ GitHub Pagesの公開URLをSafariなどのブラウザーで開く。縦画面�
 - 待機は未選択でも使える。ログはボタンで開き、遊び方とやり直しはメニューから操作する。固有技・必殺技は「未実装」の無効ボタン。自動パッシブの発動にこのボタン操作は不要。
 - 捕獲通知は戦闘中の所属移転の案内。正式な所有確定とは区別し、勝利・10Fクリアの結果で獲得と返還を確認する。
 
-PCではダウンロードした `index.html` をブラウザーで直接開いても遊べる。ファイルを `sekasoko_piece_ver007.html` に変えて配布しても動作する。再読み込み・ページ終了で進行は消える。
+PCではダウンロードした `index.html` をブラウザーで直接開いても遊べる。ファイルを `sekasoko_piece_ver008.html` に変えて配布しても動作する。再読み込み・ページ終了で進行は消える。
 
 iPhoneの「ファイル」アプリのプレビューではJavaScriptが実行されない場合があるため、実機確認はHTTP経由でSafariに読み込む方法を推奨する。
 
-iPhoneホーム画面・ブラウザー用の仮アイコン：採用済みの文字なし黄金の王冠と剣のPNG原本を `assets/icons/sekasoko_icon_temp.png` として受領・保存。図柄や背景を変えず縮小した180pxのapple-touch-icon、16／32pxのPNG favicon、16／32／48pxのICOを設定した。別デザインの生成・代用は行っていない。 再生成は `python3 scripts/build_icons.py`（開発時のみPillowが必要）。アイコン込みでローカル配布する場合は `assets/icons/` も同梱する。
+iPhoneホーム画面・ブラウザー用の仮アイコン：採用済みの文字なし黄金の王冠と剣のPNG原本を `assets/icons/sekasoko_icon_temp.png` として受領・保存。派生画像の白い外周・余白を除去し、黄金紋章を端まで敷き詰めた角丸加工なしの180px apple-touch-icon、16／32px PNG favicon、16／32／48px ICOを設定。原本と図柄は維持し、新規画像生成は行っていない。 再生成は `python3 scripts/build_icons.py`（開発時のみPillowが必要）。アイコン込みでローカル配布する場合は `assets/icons/` も同梱する。
 
 ## 開発環境
 
