@@ -7,6 +7,7 @@ const board = $('board'), pieceLayer = $('pieceLayer'), cells = $('cells'), over
 const names = ['はじまりの回廊','苔むした階段','忘れられた門','薄明の広間','石像の庭','残響の迷宮','深緑の祭壇','竜影の回廊','世界の継ぎ目','底へ続く扉'];
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let state = Engine.createRun(), selectedId = null, busy = false, generation = 0;
+let selectedHandId = null;
 let modalMode = '', returnFocus = null, toastTimer;
 let attackMode = false;
 const unitElements = new Map();
@@ -60,14 +61,18 @@ function refreshPresentation() {
   if(presentationContext)presentationContext.skipVisual=true;
   for(const animation of activeAnimations)animation.cancel();
   pieceLayer.querySelectorAll('.floating-damage,.passive-cue').forEach(el=>el.remove());
-  paintProjection();paintUnits();paintInspector();paintHighlights();
+  paintProjection();paintUnits();paintHands();paintInspector();paintHighlights();
 }
 window.addEventListener('resize',refreshPresentation);
 orientationMedia.addEventListener('change',refreshPresentation);
 window.visualViewport?.addEventListener('resize',refreshPresentation);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const find = id => state.units.find(u => u.id === id);
-const selected = () => find(selectedId);
+const hands = side => state.hands?.[side] || [];
+const findHand = id => [...hands('player'),...hands('enemy')].find(u=>u.id===id);
+const selectedHand = () => findHand(selectedHandId);
+const selected = () => find(selectedId) || selectedHand();
+const deploySquares = () => selectedHandId ? Engine.deploymentSquares(state,selectedHandId) : [];
 function toast(message) {
   $('toast').textContent = message; $('toast').classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2300);
@@ -117,16 +122,19 @@ for (let y=0;y<5;y++) for (let x=0;x<7;x++) {
 }
 function paintHighlights() {
   const u = selected();
-  const canAct = u && u.side === 'player' && state.phase === 'player' && !busy;
+  const inHand=!!selectedHand();
+  const canAct = u && !inHand && u.side === 'player' && state.phase === 'player' && !busy;
   const moves = canAct ? Engine.moves(state,u.id) : [];
   const targets = canAct ? Engine.targets(state,u.id) : [];
+  const deployments=!busy&&state.phase==='player'?deploySquares():[];
   for (const c of cells.children) {
     const x=+c.dataset.x, y=+c.dataset.y;
     const move = moves.some(m=>m.x===x&&m.y===y), target = targets.some(t=>t.x===x&&t.y===y);
-    c.classList.toggle('legal',move); c.classList.toggle('attackable',target);
+    const deployment=deployments.some(p=>p.x===x&&p.y===y);
+    c.classList.toggle('legal',move||deployment);c.classList.toggle('deployable',deployment); c.classList.toggle('attackable',target);
     c.classList.toggle('selected',!!u&&u.x===x&&u.y===y);
     c.disabled = busy || state.phase!=='player';
-    c.setAttribute('aria-label',`${displayLabel({x,y})}${move?' 移動可能':''}${target?' 攻撃可能':''}`);
+    c.setAttribute('aria-label',`${displayLabel({x,y})}${move?' 移動可能':''}${target?' 攻撃可能':''}${deployment?' 手駒を出撃可能':''}`);
   }
   for (const [id,el] of unitElements) {
     const piece=find(id);
@@ -136,6 +144,36 @@ function paintHighlights() {
     el.setAttribute('aria-pressed',id===selectedId?'true':'false');
     if (piece) el.setAttribute('aria-label',`${piece.side==='player'?'味方':'敵'}の${MASTER[piece.type].name} HP ${piece.hp}/${piece.maxHp} ${displayLabel(piece)}${targets.some(t=>t.id===id)?' 攻撃可能':''}`);
   }
+}
+function paintHands() {
+  for(const side of ['player','enemy']) {
+    const list=$(side+'HandList'),scroll=list.scrollLeft,pieces=hands(side);
+    $(side+'HandCount').textContent=pieces.length;
+    const fragment=document.createDocumentFragment();
+    for(const u of pieces) {
+      const m=MASTER[u.type],button=document.createElement('button');
+      button.className='hand-piece';button.dataset.handId=u.id;button.dataset.handSide=side;
+      button.classList.toggle('is-hand-selected',u.id===selectedHandId);
+      button.setAttribute('aria-pressed',u.id===selectedHandId?'true':'false');
+      button.setAttribute('aria-label',`${side==='player'?'味方':'敵'}の捕獲手駒 ${m.name} 個体${u.id} 出撃時HP${u.maxHp} ${u.originSide==='player'?'元の所有手駒':'今回の敵出自'}${side==='enemy'?' 確認のみ':''}`);
+      button.innerHTML=`<span class="hand-icon" aria-hidden="true">${m.icon}</span><span>${m.name}</span><small>#${u.id}</small>`;
+      button.disabled=busy||state.phase!=='player';
+      button.addEventListener('click',()=>handTap(u.id));fragment.appendChild(button);
+    }
+    if(!pieces.length){const empty=document.createElement('span');empty.className='hand-empty';empty.textContent='捕獲手駒なし';fragment.appendChild(empty);}
+    list.replaceChildren(fragment);list.scrollLeft=scroll;
+  }
+}
+for(const side of ['player','enemy']) {
+  const list=$(side+'HandList');let gesture=null;
+  list.addEventListener('pointerdown',event=>{gesture={x:event.clientX,y:event.clientY,scroll:list.scrollLeft,moved:false};},{passive:true});
+  list.addEventListener('pointermove',event=>{if(gesture&&(Math.abs(event.clientX-gesture.x)>8||Math.abs(event.clientY-gesture.y)>8))gesture.moved=true;},{passive:true});
+  list.addEventListener('pointercancel',()=>{if(gesture)gesture.moved=true;},{passive:true});
+  list.addEventListener('click',event=>{if(event.detail&&gesture&&(gesture.moved||Math.abs(list.scrollLeft-gesture.scroll)>6)){event.preventDefault();event.stopImmediatePropagation();}},true);
+}
+function handTap(id) {
+  if(busy||!overlay.hidden||state.phase!=='player'||!findHand(id))return;
+  selectedId=null;attackMode=false;selectedHandId=selectedHandId===id?null:id;render();
 }
 function paintUnits() {
   const alive = new Set(state.units.map(u=>u.id));
@@ -155,24 +193,27 @@ function paintUnits() {
   }
 }
 function paintInspector() {
-  const u=selected(), ally=u?.side==='player';
-  const info=u?Engine.combatInfo(state,u.id):null;
+  const u=selected(), ally=u?.side==='player',inHand=!!selectedHand();
+  const info=u?(inHand?{baseAtk:MASTER[u.type].atk,atk:MASTER[u.type].atk,bonusAtk:0,knightIds:[],guardId:null,guardIds:[],passives:Engine.passivesFor(u.type)}:Engine.combatInfo(state,u.id)):null;
   const oldDetail=$('inspectorBody').querySelector('.status-copy');
   const detailScroll=u&&oldDetail?.dataset.detailId===u.id?oldDetail.scrollTop:0;
-  $('selectedMark').textContent=u?`${ally?'味方':'敵'} · ${info.passives.map(p=>p.name).join('／')||'能力'} ↕`:'未選択';
+  $('selectedMark').textContent=u?`${ally?'味方':'敵'}${inHand?'手駒':''} · ${info.passives.map(p=>p.name).join('／')||'能力'}`:'未選択';
+  $('detailsBtn').disabled=!u||busy||state.phase!=='player';
   $('inspectorBody').classList.toggle('unselected',!u);
   $('inspectorBody').setAttribute('aria-hidden',u?'false':'true');
   const m=u?MASTER[u.type]:null;
   const stat=(label,value,wide=false)=>`<div class="stat ${wide?'wide':''}">${label}<b>${value}</b></div>`;
   const guard=info?.guardId?find(info.guardId):null;
+  const hp=u?(inHand?u.maxHp:u.hp):0;
   const passiveText=info?.passives.length?info.passives.map(p=>`<div class="passive-description"><b>${p.name}</b><p>${p.description}</p></div>`).join(''):'<p>パッシブなし</p>';
   const attackText=info?`<span class="effective-atk">${info.atk}</span><small class="atk-breakdown">基礎 ${info.baseAtk} ＋ ${info.bonusAtk}</small>`:'—';
-  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="status-copy" data-detail-id="${u?.id||''}" tabindex="${u?'0':'-1'}" role="region" aria-label="能力とパッシブ。スクロールで詳細を確認"><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${u.hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?u.hp/u.maxHp*100:0}%"></i></div>${stat('ATK',attackText)}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div><div class="protection-info" id="protectionInfo">${guard?`守護の石壁：ゴーレムが肩代わり <span>HP ${guard.hp}／${guard.maxHp}</span>`:'守護の石壁：保護なし'}</div><div class="passive-info" id="passiveInfo">${info?.knightIds.length?`<p class="inspiration-info">鼓舞：隣接する騎士 ${info.knightIds.length}体で強化中</p>`:""}${passiveText}</div></div>`;
+  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="status-copy" data-detail-id="${u?.id||''}" tabindex="${u?'0':'-1'}" role="region" aria-label="能力とパッシブ。詳細ボタンでも確認できる"><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><span class="hp-overview">${inHand?'出撃時 ':''}HP ${hp}/${u?.maxHp||'—'}</span><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?hp/u.maxHp*100:0}%"></i></div>${stat('ATK',attackText)}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div><div class="protection-info" id="protectionInfo">${inHand?'再出撃は満HP・コストなし。捕獲手駒内ではパッシブは発動しない。':guard?`守護の石壁：${MASTER[guard.type].name}が肩代わり <span>HP ${guard.hp}／${guard.maxHp}</span>`:'守護の石壁：保護なし'}</div><div class="passive-info" id="passiveInfo">${info?.knightIds.length?`<p class="inspiration-info">鼓舞：隣接する騎士 ${info.knightIds.length}体で強化中</p>`:""}${passiveText}</div></div>`;
   $('inspectorBody').querySelector('.status-copy').scrollTop=detailScroll;
-  const canAttack=ally&&!busy&&state.phase==='player'&&Engine.targets(state,u.id).length>0;
-  $('skillActions').classList.toggle('inactive',!ally);
-  $('skillActions').setAttribute('aria-hidden',ally?'false':'true');
-  $('skillActions').inert=!ally;
+  const actingAlly=ally&&!inHand;
+  const canAttack=actingAlly&&!busy&&state.phase==='player'&&Engine.targets(state,u.id).length>0;
+  $('skillActions').classList.toggle('inactive',!actingAlly);
+  $('skillActions').setAttribute('aria-hidden',actingAlly?'false':'true');
+  $('skillActions').inert=!actingAlly;
   $('normalAttackBtn').disabled=!canAttack;
   $('normalAttackBtn').setAttribute('aria-pressed',attackMode?'true':'false');
   $('normalAttackBtn').querySelector('small').textContent=canAttack?'射程内の敵を選択':'射程内に敵がいない';
@@ -183,6 +224,7 @@ function paintInspector() {
 
 function render(skipUnits=false) {
   if (!find(selectedId)) {selectedId=null;attackMode=false;}
+  if(!findHand(selectedHandId))selectedHandId=null;
   $('floorNum').textContent=state.floor;$('floorTitle').textContent=names[state.floor-1];
   $('turnNum').textContent=`TURN ${String(state.turn).padStart(2,'0')}`;
   $('phaseBadge').textContent=phaseLabel();$('phaseBadge').classList.toggle('enemy',state.phase==='enemy');
@@ -190,9 +232,9 @@ function render(skipUnits=false) {
   $('restartBtn').disabled=busy||state.phase==='enemy';
   const u=selected();
   $('boardHint').dataset.mode=attackMode?'attack':'normal';
-  $('boardHint').textContent=busy?'一手の行方を見届けよう。':state.phase==='enemy'?'敵が次の一手を考えている…':state.phase!=='player'?'この階層の戦いは決着した。':attackMode?'赤い敵をタップして攻撃。':u?(u.side==='enemy'?'敵の能力を確認中。':'青へ移動 ／ 赤い敵を攻撃。'):'';
+  $('boardHint').textContent=busy?'一手の行方を見届けよう。':state.phase==='enemy'?'敵が次の一手を考えている…':state.phase!=='player'?'この階層の戦いは決着した。':selectedHand()?(u.side==='enemy'?'敵の捕獲手駒を確認中。':deploySquares().length?'光る空きマスへ出撃。1手番を使う。':'盤上12体のため、今は出撃できない。'):attackMode?'赤い敵をタップして攻撃。':u?(u.side==='enemy'?'敵の能力を確認中。':'青へ移動 ／ 赤い敵を攻撃。'):'';
   $('logList').innerHTML=state.log.map(text=>`<li>${text}</li>`).join('');
-  if(!skipUnits) paintUnits(); paintInspector();paintHighlights();
+  if(!skipUnits) paintUnits(); paintHands();paintInspector();paintHighlights();
 }
 function unitTap(id) {
   if (busy || overlay.hidden===false || state.phase!=='player') return;
@@ -201,11 +243,17 @@ function unitTap(id) {
   if (actor && actor.side==='player' && target.side==='enemy' && Engine.targets(state,actor.id).some(t=>t.id===id)) {
     doAction({type:'attack',unitId:actor.id,targetId:id});return;
   }
-  attackMode=false;selectedId=selectedId===id?null:id;render();
+  selectedHandId=null;attackMode=false;selectedId=selectedId===id?null:id;render();
 }
 function cellTap(x,y) {
   if(busy||!overlay.hidden||state.phase!=='player')return;
   const occupied=state.units.find(u=>u.x===x&&u.y===y);
+  const hand=selectedHand();
+  if(hand&&hand.side==='player') {
+    if(!occupied&&deploySquares().some(p=>p.x===x&&p.y===y))doAction({type:'deploy',unitId:hand.id,x,y});
+    else toast('出撃できる空きマスを選んでね。盤上は王を含めて12体まで。');
+    return;
+  }
   if(occupied){unitTap(occupied.id);return;}
   const actor=selected();
   if(actor&&actor.side==='player') {
@@ -234,11 +282,17 @@ async function playVisual(element, frames, options, context) {
 async function animateEvents(events, context) {
   for(const e of events) {
     if(context.generation!==generation)return;
-    if(e.type==='candidate') {
-      toast(`駒入手！ ${MASTER[e.unitType].icon} ${MASTER[e.unitType].name}（勝利で確定）`);
+    if(e.type==='capture') {
+      toast(`${e.side==='player'?'捕獲！':'敵が捕獲！'} ${MASTER[e.unitType].icon} ${MASTER[e.unitType].name}（戦闘中の手駒）`);
       continue;
     }
     if(!canAnimate(context))continue;
+    if(e.type==='deploy') {
+      const unit=find(e.unitId);if(!unit)continue;
+      paintUnits();paintHighlights();const el=unitElements.get(e.unitId);if(!el)continue;
+      board.dataset.animation='deploy';
+      await playVisual(el,[{opacity:0,transform:'translateY(-9px) scale(.7)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:reducedMotion?1:190,easing:'ease-out'},context);
+    }
     if(e.type==='guard') {
       const guardian=unitElements.get(e.unitId),point=context.positions.get(e.unitId);
       if(!guardian||!point)continue;
@@ -312,7 +366,7 @@ async function doAction(action) {
   try {await animateEvents(result.events,context);} catch(error) {console.error(error);}
   finally {if(presentationContext===context)presentationContext=null;delete board.dataset.animation;}
   if(token!==generation)return;
-  busy=false;selectedId=null;render();
+  busy=false;selectedId=null;selectedHandId=null;render();
   if(['victory','defeat','clear'].includes(state.phase)) {await sleep(reducedMotion?1:300);showResult();}
   else if(state.phase==='enemy') scheduleEnemy();
 }
@@ -338,10 +392,10 @@ document.addEventListener('click',event=>{
 });
 $('waitBtn').addEventListener('click',()=>{
   if(busy||state.phase!=='player'||!overlay.hidden)return;
-  const u=selected();doAction({type:'wait',...(u?.side==='player'?{unitId:u.id}:{})});
+  const u=find(selectedId);doAction({type:'wait',...(u?.side==='player'?{unitId:u.id}:{})});
 });
 function rewardsHTML() {
-  return state.lastRewards.length?state.lastRewards.map(type=>`<span class="loot-chip">${MASTER[type].icon} ${MASTER[type].name} × 1</span>`).join(''):'<p>今回は手駒の獲得なし。王を倒して、道を切り開いた！</p>';
+  return state.lastRewards.length?state.lastRewards.map(type=>`<span class="loot-chip">${MASTER[type].icon} ${MASTER[type].name} × 1</span>`).join(''):'<p>今回は正式獲得なし。元の所有手駒は返還されたよ。</p>';
 }
 function showFormation() {
   const cost=state.formation.reduce((sum,id)=>sum+MASTER[state.roster.find(p=>p.id===id).type].cost,0);
@@ -350,7 +404,7 @@ function showFormation() {
     const isNew=i>=state.roster.length-state.lastRewards.length;
     return `<button class="roster-card ${chosen?'chosen':''}" data-roster="${p.id}" aria-pressed="${chosen}" aria-label="${m.name} 個体${i+1} コスト${m.cost} ${chosen?'出撃中':'控え'}"><span class="roster-icon" aria-hidden="true">${m.icon}</span><span class="cost">COST ${m.cost}</span><span class="check">${chosen?'✓ 出撃':isNew?'NEW':''}</span><span class="name">${m.name} <small style="color:var(--muted)">#${i+1}</small></span><span class="mini-stat">HP ${m.hp}　ATK ${m.atk}<br>移動 ${m.move}　射程 ${m.range}</span></button>`;
   }).join('');
-  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY</div><h2 id="modalTitle">手駒を迎えて、さらに深く。</h2><p>味方は全員復帰・HP全回復。次の階層の仲間を選ぼう。</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王</span><span class="mini-stat">HP 12　ATK 2<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button class="primary" id="nextFloorBtn">${state.floor+1}Fへ進む →</button></div>`);
+  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY</div><h2 id="modalTitle">手駒を迎えて、さらに深く。</h2><p>正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。<br>味方は全員復帰・HP全回復。次の仲間を選ぼう。</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王</span><span class="mini-stat">HP 12　ATK 2<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button class="primary" id="nextFloorBtn">${state.floor+1}Fへ進む →</button></div>`);
   modal.querySelectorAll('[data-roster]').forEach(button=>button.addEventListener('click',()=>{
     const id=button.dataset.roster;
     const ids=state.formation.includes(id)?state.formation.filter(p=>p!==id):[...state.formation,id];
@@ -360,25 +414,37 @@ function showFormation() {
   }));
   $('nextFloorBtn').addEventListener('click',()=>{
     const result=Engine.advance(state);if(!result.ok){toast(result.error);return;}
-    attackMode=false;selectedId=null;closeModal();render();toast(`${state.floor}Fへ。軍団のHPが全回復した！`);
+    attackMode=false;selectedId=null;selectedHandId=null;closeModal();render();toast(`${state.floor}Fへ。軍団のHPが全回復した！`);
   });
 }
 function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.006 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.007 クリア。':'味方の王のHPが0になった。新しい所有手駒の獲得はなし。元の所有手駒は返還された。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · 所有手駒${state.roster.length}体。<br>正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
-  generation++;busy=false;attackMode=false;selectedId=null;state=Engine.createRun();
+  generation++;busy=false;attackMode=false;selectedId=null;selectedHandId=null;state=Engine.createRun();
   for(const el of unitElements.values())el.remove();unitElements.clear();
-  board.querySelectorAll('.floating-damage').forEach(el=>el.remove());
+  board.querySelectorAll('.floating-damage,.passive-cue').forEach(el=>el.remove());
   closeModal();render();toast('新しい探索が始まった。1Fから、もう一度！');
 }
+function showPieceDetails() {
+  const u=selected();if(!u||busy||state.phase!=='player'||!overlay.hidden)return;
+  const m=MASTER[u.type],inHand=!!selectedHand();
+  const info=inHand?{atk:m.atk,bonusAtk:0,knightIds:[],guardId:null}:Engine.combatInfo(state,u.id);
+  const guard=info.guardId?find(info.guardId):null;
+  const passives=Engine.passivesFor(u.type).map(p=>`<div class="passive-description"><b>${p.name}</b><p>${p.description}</p></div>`).join('')||'<p>パッシブなし</p>';
+  const canAttack=!inHand&&u.side==='player'&&Engine.targets(state,u.id).length>0;
+  openModal('piece',`<div class="piece-detail"><div class="modal-title"><div><div class="eyebrow">${u.side==='player'?'味方':'敵'}${inHand?'の捕獲手駒':'の盤上駒'}</div><h2 id="modalTitle">${m.icon} ${m.name}</h2><p class="detail-id">個体 #${u.id} · ${u.originSide==='player'?'元の所有手駒':'今回の敵出自'}</p></div><button class="icon-btn" id="closeDetailsBtn" aria-label="駒の詳細を閉じる">×</button></div><div class="detail-stats"><span>${inHand?'出撃時 ':''}HP<b>${inHand?u.maxHp:u.hp} / ${u.maxHp}</b></span><span>ATK<b class="detail-effective-atk">${info.atk}</b><small>基礎 ${m.atk} ＋ ${info.bonusAtk}</small></span><span>移動<b>${m.move}</b></span><span>射程<b>${m.range}</b></span><span>編成コスト<b>${m.cost}</b></span></div><div class="protection-info">${inHand?'再出撃は満HP・コストなし。手駒内のパッシブは発動せず、出撃直後から有効。':guard?`守護の石壁：${MASTER[guard.type].name} #${guard.id} が肩代わり（HP ${guard.hp} / ${guard.maxHp}）`:'守護の石壁：保護なし'}</div><div class="passive-info">${info.knightIds.length?`<p>鼓舞：隣接する騎士${info.knightIds.length}体で強化中。</p>`:''}${passives}</div>${inHand?'<p>味方の手駒を選んで、光る空きマスへ出撃。敵陣も選べる。盤上は王を含めて12体まで。</p>':''}<div class="modal-actions"><button id="detailAttackBtn" ${canAttack?'':'disabled'}>通常攻撃</button><button disabled>固有技（未実装）</button><button disabled>必殺技（未実装）</button><button class="primary" id="backFromDetailsBtn">盤面へ戻る</button></div></div>`);
+  $('closeDetailsBtn').addEventListener('click',closeModal);$('backFromDetailsBtn').addEventListener('click',closeModal);
+  $('detailAttackBtn').addEventListener('click',()=>{closeModal();$('normalAttackBtn').click();});
+}
+$('detailsBtn').addEventListener('click',showPieceDetails);
 function showRules() {
   const passiveRules=Object.keys(MASTER).flatMap(type=>Engine.passivesFor(type).map(p=>`${MASTER[type].name}「${p.name}」：${p.description}`)).join("<br>");
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.006</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータス内をスクロールして、強化や保護も確認しよう。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.007</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>王以外を撃破すると、その個体が戦闘中の捕獲手駒に。敵も捕獲・再出撃するよ。<br>勝利時に「今回の敵出自で、いま味方に所属する個体」だけを100%正式獲得。敵に奪い返された個体は獲得しない。元の所有手駒は勝敗を問わず返還される。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。捕獲手駒は同じ戦闘中にも再出撃できる。階層をまたぐ正式な編成とは別で、10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータスの「詳細」から、強化や保護も確認しよう。</p></section><section><h3>06 · 捕獲して、再出撃。</h3><p>味方の捕獲手駒を選び、光る空きマスへ。全35マスが対象で、敵陣や敵王の隣もOK。<br>再出撃だけで1行動、満HP・コストなし。盤上は王込み12体まで。出撃直後からパッシブが有効で、手駒内では発動しない。再捕獲でも同じ個体のまま。横スクロールで全個体を選べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);
@@ -393,10 +459,11 @@ document.addEventListener('keydown',event=>{
       if(!$('menuPanel').hidden||!$('logPanel').hidden) {
         const focus=$('menuPanel').hidden?'logBtn':'menuBtn';closeFlyouts();$(focus).focus();
       } else if(attackMode) {attackMode=false;render();}
+      else if(selectedHandId){selectedHandId=null;render();}
     }
     return;
   }
-  if(event.key==='Escape'&&['rules','restart'].includes(modalMode)) {closeModal();return;}
+  if(event.key==='Escape'&&['rules','restart','piece'].includes(modalMode)) {closeModal();return;}
   if(event.key!=='Tab')return;
   const items=[...modal.querySelectorAll('button:not(:disabled),[tabindex="0"]')];
   if(!items.length){event.preventDefault();return;}

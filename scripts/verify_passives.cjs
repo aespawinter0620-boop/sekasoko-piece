@@ -1,8 +1,10 @@
 'use strict';
 
 /*
- * VER.006 independent passive-resolution oracle, captured from the original
- * read-only audit. No production code, repository state, or network is changed.
+ * VER.007 independent passive-resolution and capture oracle, captured from the original
+ * read-only audit, adapted for VER.007 capture/return bookkeeping. The original
+ * damage/adjacency/support/guard expectations and random generation stay unchanged.
+ * No production code, repository state, or network is changed.
  *
  * Run from the repository root:
  *   npm run test:oracle
@@ -23,8 +25,8 @@
  *   Attacks are not accumulated between predictions, and no random call occurs
  *   in the oracle or predictor.
  * - Compare every hit's actor, actual recipient, original target, nominal
- *   damage, follow-up flag, HP before/after; then death order and all survivor
- *   HP. Compare complete input JSON before/after every prediction.
+ *   damage, follow-up flag, HP before/after; then death order, all survivor HP, capture events, and complete individual
+ *   allegiance/origin/container metadata (including terminal original-owner returns). Compare complete input JSON before/after every prediction.
  * - Original result: 500 boards, 13,264 legal-attack predictions, zero failures.
  *
  * This independently checks passive-resolution semantics, not balance,
@@ -52,7 +54,8 @@ const cmp = (a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 // Independent from Engine.act/Engine.predictAttack and all production helpers.
 // Only the shared base character values are read from MASTER.
 function reference(source, actorId, targetId) {
-  const s = clone(source), hits = [], deaths = [];
+  const s = clone(source), hits = [], deaths = [], captures = [];
+  s.hands = clone(source.hands || {player:[],enemy:[]});
   let ended = false;
   const get = id => s.units.find(p => p.id === id);
   function strike(id, follow) {
@@ -72,6 +75,11 @@ function reference(source, actorId, targetId) {
       deaths.push(target.id);
       s.units = s.units.filter(p => p.id !== target.id);
       if (target.type === 'king') ended = true;
+      else {
+        captures.push([target.id,target.type,attacker.side,target.side,target.originSide,target.rosterId,{x:target.x,y:target.y}]);
+        target.side=attacker.side; target.currentSide=attacker.side; target.location='hand'; target.x=null; target.y=null;
+        s.hands[attacker.side].push(target);
+      }
     }
   }
   strike(actorId, false);
@@ -81,7 +89,25 @@ function reference(source, actorId, targetId) {
     if (ended || !get(targetId)) break;
     if (dist(a, get(targetId)) <= MASTER.archer.range) strike(a.id, true);
   }
-  return { hits, deaths, hp: s.units.map(p => [p.id, p.hp]).sort() };
+  // Settlement returns original owned individuals without changing their HP or original identity.
+  if (ended) for (const p of [...s.units,...s.hands.player,...s.hands.enemy]) {
+    if (p.type==='king'||p.originSide!=='player'||p.rosterId==null||p.currentSide==='player') continue;
+    s.units=s.units.filter(u=>u.id!==p.id);
+    s.hands.player=s.hands.player.filter(u=>u.id!==p.id); s.hands.enemy=s.hands.enemy.filter(u=>u.id!==p.id);
+    p.side='player'; p.currentSide='player'; p.location='hand'; p.x=null; p.y=null; s.hands.player.push(p);
+  }
+  return { hits, deaths, captures, hp: s.units.map(p => [p.id, p.hp]).sort(), individuals: individualState(s) };
+}
+
+function individualState(s) {
+  const all=[...s.units,...s.hands.player,...s.hands.enemy];
+  assert.equal(new Set(all.map(p=>p.id)).size,all.length,'one individual appears in only one container');
+  for(const p of s.units) assert.equal(p.location,'board');
+  for(const side of ['player','enemy']) for(const p of s.hands[side]) {
+    assert.equal(p.location,'hand'); assert.equal(p.currentSide,side); assert.equal(p.side,side);
+    assert.equal(p.x,null); assert.equal(p.y,null); assert.notEqual(p.type,'king');
+  }
+  return all.sort(cmp).map(p=>[p.id,p.type,p.side,p.currentSide,p.originSide,p.rosterId,p.location,p.x,p.y,p.hp,p.maxHp]);
 }
 
 let cases = 0;
@@ -98,10 +124,12 @@ for (let game = 0; game < 500; game++) {
     const type = i < 2 ? 'king' : types[1 + Math.floor(random() * (types.length - 1))];
     const side = i % 2 ? 'enemy' : 'player';
     s.units.push({
-      id: 'u' + (i + 1), type, side, ...cells[i],
+      id: 'u' + (i + 1), type, side, currentSide:side, originSide:side, rosterId:side==='player'&&type!=='king'?`owned-u${i+1}`:null, location:'board', ...cells[i],
       hp: 1 + Math.floor(random() * MASTER[type].hp), maxHp: MASTER[type].hp
     });
   }
+  s.roster=s.units.filter(p=>p.rosterId!=null).map(p=>({id:p.rosterId,type:p.type}));
+  s.formation=s.roster.map(p=>p.id);
   for (const actor of s.units.filter(p => p.side === s.phase)) {
     for (const target of Engine.targets(s, actor.id)) {
       const before = JSON.stringify(s);
@@ -112,7 +140,9 @@ for (let game = 0; game < 500; game++) {
           e.unitId, e.targetId, e.originalTargetId, e.damage, e.followUp, e.hpBefore, e.hpAfter
         ]),
         deaths: result.killedIds,
-        hp: result.state.units.map(p => [p.id, p.hp]).sort()
+        captures: result.events.filter(e=>e.type==='capture').map(e=>[e.unitId,e.unitType,e.side,e.fromSide,e.originSide,e.rosterId,{x:e.from.x,y:e.from.y}]),
+        hp: result.state.units.map(p => [p.id, p.hp]).sort(),
+        individuals: individualState(result.state)
       };
       if (JSON.stringify(expected) !== JSON.stringify(actual)) {
         throw Error('Mismatch ' + JSON.stringify({ game, actor, target, expected, actual }));
@@ -125,10 +155,11 @@ for (let game = 0; game < 500; game++) {
 assert.equal(cases, 13264, 'The original generation sequence must remain reproducible.');
 
 const piece = (id, type, side, x, y, hp = MASTER[type].hp) =>
-  ({ id, type, side, x, y, hp, maxHp: MASTER[type].hp });
+  ({ id, type, side, currentSide:side, originSide:side, rosterId:side==='player'&&type!=='king'?`owned-${id}`:null, location:'board', x, y, hp, maxHp: MASTER[type].hp });
 function fixture(units) {
   const s = Engine.createRun();
   s.units = units;
+  s.roster=units.filter(p=>p.rosterId!=null).map(p=>({id:p.rosterId,type:p.type})); s.formation=s.roster.map(p=>p.id);
   s.phase = 'enemy';
   return s;
 }
@@ -180,7 +211,7 @@ console.log(JSON.stringify({
   seedStart: 6007,
   randomBoards: 500,
   legalAttackPredictions: cases,
-  result: 'oracle hit sequence/HP/death comparison and input preservation passed',
+  result: 'oracle hit sequence/HP/death/capture/individual-container comparison and input preservation passed',
   aiMovementCounterexamples: {
     count: 2,
     guardDeparture: { action: guardAction, chosenKingKilled: guardChosenThreat.kingKilledId,

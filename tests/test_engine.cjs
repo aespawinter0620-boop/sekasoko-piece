@@ -10,16 +10,43 @@ vm.runInContext(source, context);
 const {MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine: E} = context.Sekasoko;
 const tests = [];
 function test(name, fn) { tests.push([name, fn]); }
-function unit(id, type, side, x, y, hp = MASTER[type].hp) {
-  return {id, type, side, x, y, hp, maxHp: MASTER[type].hp};
+function unit(id, type, side, x, y, hp = MASTER[type].hp, meta = {}) {
+  return {id, type, side, currentSide:side, originSide:side, rosterId:null, location:'board', x, y, hp, maxHp:MASTER[type].hp, ...meta};
 }
 function setup(units, phase = 'player') {
-  const s = E.createRun();
+  const s = E.createRun(), assigned=new Set();
   s.units = units;
-  s.phase = phase;
-  s.candidates = [];
-  s.lastRewards = [];
+  for(const u of s.units) if(u.originSide==='player'&&u.type!=='king') {
+    let owned=u.rosterId&&s.roster.find(r=>r.id===u.rosterId);
+    if(!owned) owned=s.roster.find(r=>r.type===u.type&&!assigned.has(r.id));
+    if(!owned) { owned={id:`owned-${u.id}`,type:u.type}; s.roster.push(owned); }
+    u.rosterId=owned.id; assigned.add(owned.id);
+  }
+  s.phase=phase; s.hands={player:[],enemy:[]}; s.candidates=[];
+  s.lastRewards=[]; s.lastRewardDetails=[]; s.lastReturns=[]; s.battleFinalized=false;
   return s;
+}
+function hand(s,id,type,side,meta={}) {
+  const u=unit(id,type,side,null,null,0,{originSide:'enemy',location:'hand',...meta});
+  s.hands[side].push(u); return u;
+}
+function allPieces(s) { return [...s.units,...s.hands.player,...s.hands.enemy]; }
+function assertInventory(s, expectedIds) {
+  const pieces=allPieces(s);
+  assert.equal(new Set(pieces.map(p=>p.id)).size,pieces.length,'one individual can occupy only one container');
+  if(expectedIds) assert.deepEqual(pieces.map(p=>p.id).sort(),[...expectedIds].sort());
+  assert.equal(new Set(s.units.map(p=>`${p.x},${p.y}`)).size,s.units.length);
+  for(const side of ['player','enemy']) {
+    assert.ok(s.units.filter(p=>p.side===side).length<=12);
+    for(const p of s.hands[side]) {
+      assert.equal(p.side,side); assert.equal(p.currentSide,side); assert.equal(p.location,'hand');
+      assert.equal(p.x,null); assert.equal(p.y,null); assert.notEqual(p.type,'king');
+    }
+  }
+  for(const p of s.units) {
+    assert.equal(p.location,'board'); assert.equal(p.currentSide,p.side);
+    assert.ok(p.x>=0&&p.x<7&&p.y>=0&&p.y<5&&p.hp>0&&p.hp<=MASTER[p.type].hp);
+  }
 }
 function action(s, a) { const r = E.act(s, a); assert.equal(r.ok, true, r.error); return r; }
 function json(v) { return JSON.parse(JSON.stringify(v)); }
@@ -144,7 +171,7 @@ test('Wait ends a turn even when the selected piece has no legal moves or attack
   action(s,{type:'wait',unitId:'k'}); assert.equal(s.phase,'enemy');
 });
 
-test('Only killed nonking enemies become candidates; victory commits all duplicates once', () => {
+test('Captured nonking enemies remain distinct; victory commits both currently held individuals once', () => {
   const s=setup([unit('k','king','player',0,4),unit('a','archer','player',0,2),unit('s1','slime','enemy',1,2,1),unit('s2','slime','enemy',2,2,1),unit('ek','king','enemy',3,2,2),unit('survivor','goblin','enemy',6,4)]);
   const original=s.roster.length;
   action(s,{type:'attack',unitId:'a',targetId:'s1'});
@@ -161,9 +188,9 @@ test('Only killed nonking enemies become candidates; victory commits all duplica
   assert.equal(E.act(s,{type:'wait'}).ok,false); assert.equal(s.roster.length,original+2);
 });
 
-test('Defeat discards provisional rewards and is triggered solely by friendly king HP', () => {
+test('Defeat awards no held captives and is triggered solely by friendly king HP', () => {
   const s=setup([unit('k','king','player',0,2,1),unit('n','knight','player',0,1),unit('a','archer','enemy',3,2),unit('ek','king','enemy',6,2)],'enemy');
-  s.candidates=['dragon','slime']; const count=s.roster.length;
+  hand(s,'held-dragon','dragon','player'); hand(s,'held-slime','slime','player'); const count=s.roster.length;
   action(s,{type:'attack',unitId:'a',targetId:'k'});
   assert.equal(s.phase,'defeat'); assert.equal(s.candidates.length,0); assert.equal(s.roster.length,count);
   assert.equal(E.advance(s).ok,false);
@@ -219,7 +246,7 @@ test('Next floor restores killed allies, heals survivors, and deploys the select
   const initialFormation=json(s.formation);
   s.units=s.units.filter(u=>u.side==='enemy'||u.type==='king');
   s.units.find(u=>u.side==='player').hp=1;
-  s.phase='victory'; s.candidates=['slime'];
+  s.phase='victory'; hand(s,'between-floor-slime','slime','player');
   const result=E.advance(s); assert.equal(result.ok,true,result.error);
   assert.equal(s.floor,2); assert.equal(s.phase,'player'); assert.equal(s.turn,1);
   assert.deepEqual(json(s.formation),initialFormation);
@@ -295,7 +322,7 @@ test('All ten floors can be cleared consecutively with valid twelve-unit deploym
 
 test('10F victory clears the prototype and a new run fully resets it', () => {
   const s=setup([unit('k','king','player',0,2),unit('a','archer','player',3,2),unit('ek','king','enemy',6,2,1)]);
-  s.floor=10; s.candidates=['dragon'];
+  s.floor=10; hand(s,'held-dragon','dragon','player');
   action(s,{type:'attack',unitId:'a',targetId:'ek'});
   assert.equal(s.phase,'clear'); assert.deepEqual(json(s.lastRewards),['dragon']);
   assert.equal(E.advance(s).ok,false);
@@ -315,20 +342,22 @@ test('Eleven defeated enemies are committed once, with duplicate types and uniqu
     s.phase='player'; action(s,{type:'attack',unitId:'dragon',targetId:enemy.id});
     assert.equal(s.roster.length,initial);
   }
-  assert.deepEqual(json(s.candidates),types); assert.equal(s.candidates.length,11);
+  assert.deepEqual(json(s.candidates).sort(),types.slice().sort()); assert.equal(s.candidates.length,11);
+  assert.deepEqual(json(s.hands.player.map(u=>u.id)).sort(),defeated.map(u=>u.id).sort());
   const actor=s.units.find(u=>u.id==='dragon'); actor.x=4; actor.y=2; s.phase='player';
   action(s,{type:'attack',unitId:'dragon',targetId:'ek'});
-  assert.equal(s.phase,'victory'); assert.deepEqual(json(s.lastRewards),types);
+  assert.equal(s.phase,'victory'); assert.deepEqual(json(s.lastRewards).sort(),types.slice().sort());
   assert.equal(s.roster.length,initial+11); assert.equal(s.candidates.length,0);
-  assert.deepEqual(json(s.roster.slice(initial).map(r=>r.type)),types);
+  assert.deepEqual(json(s.roster.slice(initial).map(r=>r.type)).sort(),types.slice().sort());
+  assert.deepEqual(json(s.lastRewardDetails.map(r=>r.unitId)).sort(),defeated.map(u=>u.id).sort());
   assert.equal(new Set(s.roster.map(r=>r.id)).size,s.roster.length);
   assert.equal(s.roster.slice(initial).some(r=>r.type==='king'||r.type==='mage'),false);
   const before=json(s); assert.equal(E.act(s,{type:'wait'}).ok,false); assert.deepEqual(json(s),before);
 });
 
-test('Defeat discards all eleven candidates without adding owned instances', () => {
+test('Defeat adds none of eleven held enemy-origin individuals to the owned roster', () => {
   const s=setup([unit('pk','king','player',0,2,1),unit('a','archer','enemy',3,2),unit('ek','king','enemy',6,2)],'enemy');
-  s.candidates=json(ARMY_RULES.firstFloorEnemyTypes); const ids=json(s.roster);
+  ARMY_RULES.firstFloorEnemyTypes.forEach((type,i)=>hand(s,`held${i}`,type,'player')); const ids=json(s.roster);
   action(s,{type:'attack',unitId:'a',targetId:'pk'});
   assert.equal(s.phase,'defeat'); assert.deepEqual(json(s.roster),ids);
   assert.equal(s.candidates.length,0); assert.equal(s.lastRewards.length,0);
@@ -385,12 +414,11 @@ test('Floors 2–10 use exactly eleven unchanged weighted draws with fixed encou
 });
 
 test('Unchanged master, army, movement, targeting, and encounter rules retain their baseline source', () => {
-  // Issue #7 changes attack/AI resolution, while these established rules stay unchanged. No Git dependency in shallow CI.
+  // Capture/redeploy changes resolution, while these established rules stay unchanged. No Git dependency in shallow CI.
   const expected={
     moves:'6246ca1e52a3bcc23db2312c55cdd5ab016f7162bdcbe95e75616d65b5a2ff06',
     targets:'32f35fba40c33dccea6e79d212c2ea80393b446155b4dcff84e418bbcd799338',
-    setFormation:'3fedf476a2f64b7aa6e7cb2989abfc019485c9caf23c7af7cacd6baf8668815d',
-    advance:'0b4e563559f45dbbab7dee1392b92d11c61e0fa85968183d38b03eab52d9f03b'
+
   };
   const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
   for(const [name,fingerprint] of Object.entries(expected)) assert.equal(hash(E[name].toString()),fingerprint,name);
@@ -421,7 +449,7 @@ function predictMatchesAct(s,actorId,targetId) {
   assert.deepEqual(json(prediction.state),json(actualState),'entire resulting state including IDs, history, logs and counters');
   const damage={};
   for(const u of before.units) {
-    const dealt=u.hp-hp(actualState,u.id); if(dealt>0) damage[u.id]=dealt;
+    const dealt=u.hp-(allPieces(actualState).find(p=>p.id===u.id)?.hp??0); if(dealt>0) damage[u.id]=dealt;
   }
   assert.deepEqual(json(prediction.damageById),damage,'actual HP loss, excluding overkill');
   const deaths=json(actual.events).filter(e=>e.type==='death');
@@ -597,7 +625,7 @@ function guardedKingFinish(side='player',floor=1) {
   const s=setup([unit('ownKing','king',side,0,4),unit('actor','dragon',side,2,2),
     unit('a','archer',side,1,2),unit('z','archer',side,3,0),
     unit('target','king',other,3,2,2),unit('guard','golem',other,4,2,1)],side);
-  s.floor=floor; s.candidates=['orc','orc']; return s;
+  s.floor=floor; hand(s,'held-orc1','orc','player'); hand(s,'held-orc2','orc','player'); return s;
 }
 
 test('Guard death permits support to finish the king, then victory/10F rewards commit once and remaining support stops', () => {
@@ -606,7 +634,7 @@ test('Guard death permits support to finish the king, then victory/10F rewards c
     const r=action(s,{type:'attack',unitId:'actor',targetId:'target'});
     assert.equal(s.phase,floor===10?'clear':'victory');
     assert.deepEqual(json(hits(r).map(e=>[e.unitId,e.targetId])),[['actor','guard'],['a','target']]);
-    assert.deepEqual(json(s.lastRewards),['orc','orc','golem']); assert.equal(s.candidates.length,0);
+    assert.deepEqual(json(s.lastRewards).sort(),['golem','orc','orc']); assert.equal(s.candidates.length,0);
     assert.equal(s.roster.length,count+3); assert.equal(new Set(s.roster.map(r=>r.id)).size,s.roster.length);
     assert.equal(s.totalActions,1); assert.equal(s.turn,turn);
     assert.deepEqual(json(r.events.filter(e=>e.type==='death').map(e=>e.unitId)),['guard','target']);
@@ -755,6 +783,291 @@ test('A legal king plus eleven archers resolves all twelve hits once with full g
   assert.equal(r.events.filter(e=>e.type==='death'&&e.unitId==='guard').length,1);
   assert.equal(hp(s,'guard'),0); assert.equal(hp(s,'target'),4); assert.equal(s.phase,'enemy');
   assert.equal(s.totalActions,beforeActions+1); assert.equal(s.turn,beforeTurn+1);
+});
+
+function captureFixture(side='player') {
+  const other=side==='player'?'enemy':'player';
+  const s=setup([unit('ownKing','king',side,side==='player'?0:6,4),
+    unit('actor','dragon',side,side==='player'?2:4,2),unit('captured','slime',other,3,2,1),
+    unit('otherKing','king',other,side==='player'?6:0,4)],side);
+  const original=json(s.units.find(u=>u.id==='captured'));
+  const result=action(s,{type:'attack',unitId:'actor',targetId:'captured'});
+  return {s,original,result};
+}
+function cycleFixture() {
+  const s=setup([unit('pk','king','player',0,4),unit('actor','dragon','player',2,2),
+    unit('captured','slime','enemy',3,2,1),unit('enemyDragon','dragon','enemy',6,2),unit('ek','king','enemy',6,4,1)]);
+  action(s,{type:'attack',unitId:'actor',targetId:'captured'}); return s;
+}
+
+test('Every starting board individual has immutable-origin metadata and hands start empty', () => {
+  const s=E.createRun(); assert.deepEqual(json(s.hands),{player:[],enemy:[]}); assert.equal(s.battleFinalized,false);
+  assertInventory(s); assert.deepEqual(json(E.rewardPreview(s)),[]);
+  for(const u of s.units) {
+    assert.equal(u.originSide,u.side); assert.equal(u.currentSide,u.side);
+    if(u.side==='player'&&u.type!=='king') assert.equal(s.roster.find(r=>r.id===u.rosterId)?.type,u.type);
+    else assert.equal(u.rosterId,null);
+  }
+  assert.equal(new Set(s.units.filter(u=>u.side==='player'&&u.type!=='king').map(u=>u.rosterId)).size,11);
+});
+
+test('Normal captures on either side preserve the real individual and change only current allegiance and board location', () => {
+  for(const side of ['player','enemy']) {
+    const {s,original,result}=captureFixture(side), captive=s.hands[side][0];
+    assert.equal(s.units.some(u=>u.id===original.id),false); assert.equal(captive.id,original.id);
+    assert.deepEqual([captive.type,captive.originSide,captive.rosterId],[original.type,original.originSide,original.rosterId]);
+    assert.deepEqual([captive.side,captive.currentSide,captive.location,captive.hp,captive.x,captive.y],[side,side,'hand',0,null,null]);
+    assert.deepEqual(json(result.events.filter(e=>e.type==='capture').map(e=>({unitId:e.unitId,unitType:e.unitType,side:e.side,fromSide:e.fromSide,originSide:e.originSide,rosterId:e.rosterId,from:e.from}))),
+      [{unitId:original.id,unitType:original.type,side,fromSide:original.side,originSide:original.originSide,rosterId:original.rosterId,from:{x:original.x,y:original.y}}]);
+    assert.equal(result.events.some(e=>e.type==='candidate'),false); assert.equal(s.lastRewards.length,0);
+    assertInventory(s); assert.equal(s.roster.filter(r=>r.id===original.rosterId).length,original.originSide==='player'?1:0);
+  }
+});
+
+test('Repeated capture and redeployment conserve the same battle ID and original ownership over six allegiance changes', () => {
+  const s=cycleFixture(), ids=allPieces(s).map(u=>u.id), roster=json(s.roster), history=[];
+  for(let cycle=0;cycle<3;cycle++) {
+    action(s,{type:'wait'});
+    action(s,{type:'deploy',unitId:'captured',x:5,y:2}); assert.equal(hp(s,'captured'),4);
+    action(s,{type:'attack',unitId:'enemyDragon',targetId:'captured'}); assertInventory(s,ids);
+    history.push(s.hands.enemy.find(u=>u.id==='captured').side);
+    action(s,{type:'wait'}); action(s,{type:'deploy',unitId:'captured',x:3,y:2});
+    action(s,{type:'attack',unitId:'actor',targetId:'captured'}); assertInventory(s,ids);
+    const u=s.hands.player.find(u=>u.id==='captured'); history.push(u.side);
+    assert.equal(u.originSide,'enemy'); assert.equal(u.rosterId,null); assert.deepEqual(json(s.roster),roster);
+  }
+  assert.deepEqual(history,['enemy','player','enemy','player','enemy','player']);
+  assert.deepEqual(json(E.rewardPreview(s).map(r=>r.unitId)),['captured']);
+});
+
+test('Every one of the 35 cells is checked for deployment on both sides, including hostile territory and king adjacency', () => {
+  for(const side of ['player','enemy']) {
+    const {s}=captureFixture(side); action(s,{type:'wait'});
+    const occupied=new Set(s.units.map(u=>`${u.x},${u.y}`));
+    const before=json(s), squares=E.deploymentSquares(s,'captured'); assert.deepEqual(json(s),before);
+    assert.equal(squares.length,35-occupied.size);
+    for(let y=0;y<5;y++) for(let x=0;x<7;x++) {
+      const copy=json(s), snapshot=json(copy), result=E.act(copy,{type:'deploy',unitId:'captured',x,y});
+      assert.equal(result.ok,!occupied.has(`${x},${y}`),`${side} (${x},${y})`);
+      if(!result.ok) { assert.deepEqual(json(copy),snapshot); continue; }
+      const deployed=copy.units.find(u=>u.id==='captured');
+      assert.deepEqual([deployed.x,deployed.y,deployed.hp,deployed.maxHp,deployed.side,deployed.currentSide,deployed.location],[x,y,4,4,side,side,'board']);
+      assert.equal(copy.hands[side].length,0); assert.equal(copy.totalActions,s.totalActions+1); assert.equal(copy.turn,s.turn+1);
+      assert.equal(copy.phase,side==='player'?'enemy':'player'); assert.equal(result.events.filter(e=>e.type==='deploy').length,1);
+      assert.equal(result.events.some(e=>['move','attack'].includes(e.type)),false); assertInventory(copy);
+      const after=json(copy); assert.equal(E.act(copy,{type:'move',unitId:'captured',x:3,y:3}).ok,false); assert.deepEqual(json(copy),after);
+    }
+    assert.ok(squares.some(p=>p.x===(side==='player'?6:0)&&p.y===3),'enemy king adjacent cell is eligible');
+  }
+});
+
+test('Deployment rejects missing, foreign, board, king, occupied, fractional, out-of-board and out-of-turn input atomically', () => {
+  const {s}=captureFixture(); action(s,{type:'wait'});
+  hand(s,'foreign','goblin','enemy',{originSide:'player',rosterId:'owned-foreign'});
+  const base=json(s);
+  const invalid=[
+    {type:'deploy',unitId:'missing',x:3,y:2},{type:'deploy',unitId:'foreign',x:3,y:2},
+    {type:'deploy',unitId:'actor',x:3,y:2},{type:'deploy',unitId:'captured',x:2,y:2},
+    {type:'deploy',unitId:'captured',x:-1,y:0},{type:'deploy',unitId:'captured',x:7,y:0},
+    {type:'deploy',unitId:'captured',x:0,y:-1},{type:'deploy',unitId:'captured',x:0,y:5},
+    {type:'deploy',unitId:'captured',x:.5,y:0},{type:'deploy',unitId:'captured',x:0,y:NaN}
+  ];
+  for(const input of invalid) { const copy=json(base), before=json(copy); assert.equal(E.act(copy,input).ok,false); assert.deepEqual(json(copy),before); }
+  const royal=json(base); hand(royal,'fakeKing','king','player',{originSide:'player'});
+  assert.deepEqual(json(E.deploymentSquares(royal,'fakeKing')),[]);
+  const royalBefore=json(royal); assert.equal(E.act(royal,{type:'deploy',unitId:'fakeKing',x:3,y:2}).ok,false); assert.deepEqual(json(royal),royalBefore);
+  const wrongTurn=json(base); wrongTurn.phase='enemy'; const snapshot=json(wrongTurn);
+  assert.equal(E.act(wrongTurn,{type:'deploy',unitId:'captured',x:3,y:2}).ok,false); assert.deepEqual(json(wrongTurn),snapshot);
+  const ended=json(base); ended.phase='victory'; const endedBefore=json(ended);
+  assert.equal(E.act(ended,{type:'deploy',unitId:'captured',x:3,y:2}).ok,false); assert.deepEqual(json(ended),endedBefore);
+});
+
+test('The twelve-board-unit cap counts the king, ignores hands and opens immediately when an ally is captured', () => {
+  const s=E.createRun(), actor=s.units.find(u=>u.side==='player'&&u.type==='archer');
+  const target=s.units.find(u=>u.side==='enemy'&&u.x===4&&u.y===4); target.hp=1;
+  action(s,{type:'attack',unitId:actor.id,targetId:target.id}); action(s,{type:'wait'});
+  assert.equal(s.hands.player.length,1); assert.equal(s.units.filter(u=>u.side==='player').length,12);
+  assert.deepEqual(json(E.deploymentSquares(s,target.id)),[]);
+  const before=json(s); assert.equal(E.act(s,{type:'deploy',unitId:target.id,x:3,y:2}).ok,false); assert.deepEqual(json(s),before);
+  action(s,{type:'wait'}); const king=s.units.find(u=>u.side==='enemy'&&u.type==='king'); king.x=3; king.y=4; actor.hp=1;
+  action(s,{type:'attack',unitId:king.id,targetId:actor.id}); assert.equal(s.units.filter(u=>u.side==='player').length,11);
+  action(s,{type:'deploy',unitId:target.id,x:3,y:2});
+  assert.equal(s.units.filter(u=>u.side==='player').length,12); assert.equal(s.hands.enemy.length,1); assertInventory(s);
+});
+
+test('Hands have no eleven-piece limit and deploying a captive has no formation-cost charge', () => {
+  const s=E.createRun(), nonKings=s.units.filter(u=>u.type!=='king'); s.units=s.units.filter(u=>u.type==='king');
+  s.hands.player=nonKings.map(u=>({...u,side:'player',currentSide:'player',location:'hand',hp:0,x:null,y:null}));
+  assert.equal(s.hands.player.length,22); assertInventory(s);
+  action(s,{type:'deploy',unitId:nonKings[0].id,x:3,y:2}); assert.equal(s.hands.player.length,21); assertInventory(s);
+  const types=[...Array(5).fill('dragon'),...Array(5).fill('slime')], cells=[];
+  for(let y=0;y<5;y++) for(let x=0;x<3;x++) if(!(x===0&&y===4)) cells.push({x,y});
+  const costly=setup([unit('pk','king','player',0,4),...types.map((type,i)=>unit(`p${i}`,type,'player',cells[i].x,cells[i].y)),unit('ek','king','enemy',6,4)]);
+  costly.roster=costly.units.filter(u=>u.side==='player'&&u.type!=='king').map(u=>({id:u.rosterId,type:u.type})); costly.formation=costly.roster.map(r=>r.id);
+  assert.equal(formationCost(costly,costly.formation),35); hand(costly,'freeDragon','dragon','player');
+  action(costly,{type:'deploy',unitId:'freeDragon',x:6,y:3});
+  assert.equal(costly.units.filter(u=>u.side==='player').reduce((sum,u)=>sum+MASTER[u.type].cost,0),41); assertInventory(costly);
+});
+
+test('A captured knight is inactive in hand and its redeployment immediately inspires only its new allies', () => {
+  const s=setup([unit('pk','king','player',0,4),unit('actor','orc','player',2,2),
+    unit('n','knight','enemy',3,2,1),unit('enemyOrc','orc','enemy',3,1),unit('ek','king','enemy',6,4)]);
+  assert.equal(E.combatInfo(s,'enemyOrc').atk,4);
+  action(s,{type:'attack',unitId:'actor',targetId:'n'});
+  assert.equal(E.combatInfo(s,'actor').atk,3); assert.equal(E.combatInfo(s,'enemyOrc').atk,3);
+  assert.equal(E.combatInfo(s,'n'),null); assert.deepEqual(json(E.moves(s,'n')),[]); assert.deepEqual(json(E.targets(s,'n')),[]);
+  action(s,{type:'wait'}); action(s,{type:'deploy',unitId:'n',x:2,y:1});
+  assert.equal(E.combatInfo(s,'actor').atk,4); assert.equal(E.combatInfo(s,'enemyOrc').atk,3);
+});
+
+test('A captured archer cannot support from hand but supports immediately after a full-HP redeployment', () => {
+  const s=setup([unit('pk','king','player',0,0),unit('actor','dragon','player',2,2),
+    unit('a','archer','enemy',3,2,1),unit('target','golem','enemy',2,4),unit('ek','king','enemy',6,4)]);
+  action(s,{type:'attack',unitId:'actor',targetId:'a'}); action(s,{type:'wait'});
+  const first=action(s,{type:'attack',unitId:'actor',targetId:'target'}); assert.equal(hits(first).length,1); assert.equal(hp(s,'target'),9);
+  action(s,{type:'wait'}); action(s,{type:'deploy',unitId:'a',x:0,y:4}); assert.equal(hp(s,'a'),5);
+  action(s,{type:'wait'}); const second=action(s,{type:'attack',unitId:'actor',targetId:'target'});
+  assert.deepEqual(json(hits(second).map(e=>[e.unitId,e.followUp])),[['actor',false],['a',true]]); assert.equal(hp(s,'target'),2);
+});
+
+test('A captured golem in hand cannot guard, and redeployment protects its new king immediately', () => {
+  const s=setup([unit('pk','king','player',0,4,1),unit('actor','dragon','player',2,2),
+    unit('g','golem','enemy',3,2,1),unit('a','archer','enemy',3,4),unit('ek','king','enemy',6,0)]);
+  action(s,{type:'attack',unitId:'actor',targetId:'g'}); assert.equal(E.predictAttack(s,'a','pk').kingKilledId,'pk');
+  action(s,{type:'wait'}); action(s,{type:'deploy',unitId:'g',x:0,y:3});
+  assert.equal(E.combatInfo(s,'pk').guardId,'g'); assert.equal(E.predictAttack(s,'a','pk').kingKilledId,null);
+  action(s,{type:'attack',unitId:'a',targetId:'pk'}); assert.equal(hp(s,'pk'),1); assert.equal(hp(s,'g'),12);
+});
+
+test('Winning acquisition depends on current possession, including deployed captives, and excludes enemy recapture', () => {
+  const held=cycleFixture(), deployed=json(held); action(deployed,{type:'wait'}); action(deployed,{type:'deploy',unitId:'captured',x:5,y:2});
+  const enemyHeld=json(deployed); action(enemyHeld,{type:'attack',unitId:'enemyDragon',targetId:'captured'});
+  const enemyBoard=json(enemyHeld); action(enemyBoard,{type:'wait'}); action(enemyBoard,{type:'deploy',unitId:'captured',x:3,y:2});
+  for(const [s,acquired] of [[held,true],[deployed,true],[enemyHeld,false],[enemyBoard,false]]) {
+    const originalCount=s.roster.length;
+    if(s.phase==='enemy') action(s,{type:'wait'});
+    assert.equal(E.rewardPreview(s).some(r=>r.unitId==='captured'),acquired);
+    const actor=s.units.find(u=>u.id==='actor'); actor.x=5; actor.y=4;
+    action(s,{type:'attack',unitId:'actor',targetId:'ek'});
+    assert.equal(s.phase,'victory'); assert.equal(s.roster.length,originalCount+Number(acquired));
+    assert.deepEqual(json(s.lastRewardDetails.map(r=>r.unitId)),acquired?['captured']:[]);
+    assert.deepEqual(json(s.lastRewards),acquired?['slime']:[]);
+    assert.equal(s.lastRewardDetails.some(r=>['enemyDragon','ek'].includes(r.unitId)),false);
+    if(acquired) assert.equal(s.roster.find(r=>r.id===s.lastRewardDetails[0].rosterId)?.type,'slime');
+    const after=json(s); assert.equal(E.act(s,{type:'wait'}).ok,false); assert.deepEqual(json(s),after); assertInventory(s);
+  }
+});
+
+test('Original player ownership IDs return without reacquisition in every location, result and final floor', () => {
+  for(const floor of [1,10]) for(const win of [true,false]) for(const mode of ['player-board','player-hand','enemy-board','enemy-hand']) {
+    const s=setup([unit('pk','king','player',0,4),unit('owned','knight','player',2,2),
+      unit('enemyActor','dragon','enemy',3,2),unit('ek','king','enemy',6,4)],'player'); s.floor=floor;
+    const u=s.units.find(p=>p.id==='owned'), rosterBefore=json(s.roster), rid=u.rosterId;
+    const [side,location]=mode.split('-'); u.side=side; u.currentSide=side; u.location=location;
+    if(location==='hand') { s.units=s.units.filter(p=>p.id!==u.id); u.hp=0; u.x=null; u.y=null; s.hands[side].push(u); }
+    if(win) {
+      const king=s.units.find(p=>p.id==='ek'); king.x=1; king.y=4; king.hp=1;
+      action(s,{type:'attack',unitId:'pk',targetId:'ek'});
+    } else {
+      const king=s.units.find(p=>p.id==='pk'); king.x=3; king.y=3; king.hp=1;
+      action(s,{type:'wait'}); action(s,{type:'attack',unitId:'enemyActor',targetId:'pk'});
+    }
+    assert.equal(s.phase,win?(floor===10?'clear':'victory'):'defeat'); assert.deepEqual(json(s.roster),rosterBefore);
+    assert.equal(s.roster.filter(r=>r.id===rid).length,1); assert.equal(s.lastRewards.length,0);
+    assert.deepEqual(json(s.lastReturns.map(r=>[r.unitId,r.rosterId,r.fromSide,r.fromLocation])),[['owned',rid,side,location]]);
+    const returned=allPieces(s).find(p=>p.id==='owned'); assert.equal(returned.originSide,'player'); assert.equal(returned.rosterId,rid);
+    assert.equal(returned.side,'player'); assert.equal(returned.currentSide,'player');
+    if(side==='enemy') assert.equal(returned.location,'hand'); else assert.equal(returned.location,location);
+    assertInventory(s);
+  }
+});
+
+test('The next battle clears both hands and treats acquired ownership as player origin with its new roster ID', () => {
+  const s=cycleFixture(); action(s,{type:'wait'});
+  const actor=s.units.find(u=>u.id==='actor'); actor.x=5; actor.y=4;
+  action(s,{type:'attack',unitId:'actor',targetId:'ek'}); const acquired=s.lastRewardDetails[0];
+  assert.equal(s.hands.player.some(u=>u.id==='captured'),true);
+  assert.equal(E.setFormation(s,[acquired.rosterId]).ok,true); assert.equal(E.advance(s).ok,true);
+  assert.equal(s.floor,2); assert.deepEqual(json(s.hands),{player:[],enemy:[]}); assert.equal(s.battleFinalized,false);
+  const u=s.units.find(p=>p.rosterId===acquired.rosterId); assert.ok(u); assert.notEqual(u.id,'captured');
+  assert.deepEqual([u.type,u.side,u.currentSide,u.originSide,u.location,u.hp],['slime','player','player','player','board',4]);
+  assert.equal(s.lastRewardDetails.length,0); assert.equal(s.lastReturns.length,0); assertInventory(s);
+  const fresh=E.createRun(); assert.deepEqual(json(fresh.hands),{player:[],enemy:[]}); assert.equal(fresh.roster.length,11);
+});
+
+test('Kings are never captured and a terminal settlement cannot be applied a second time', () => {
+  for(const side of ['player','enemy']) {
+    const other=side==='player'?'enemy':'player';
+    const s=setup([unit('actor','dragon',side,2,2),unit('ownKing','king',side,0,4),unit('royal','king',other,3,2,1)],side);
+    const result=action(s,{type:'attack',unitId:'actor',targetId:'royal'});
+    assert.equal(result.events.some(e=>e.type==='capture'&&e.unitId==='royal'),false);
+    assert.equal(allPieces(s).some(u=>u.id==='royal'),false); assert.equal(s.battleFinalized,true);
+    assert.equal(s.hands.player.some(u=>u.type==='king')||s.hands.enemy.some(u=>u.type==='king'),false);
+    const after=json(s); assert.equal(E.act(s,{type:'attack',unitId:'actor',targetId:'royal'}).ok,false); assert.deepEqual(json(s),after);
+  }
+});
+
+test('Guardian and follow-up captures take the actual struck individuals exactly once without auto-deployment', () => {
+  const s=setup([unit('pk','king','player',0,4),unit('actor','dragon','player',2,2),
+    unit('a','archer','player',1,2),unit('b','archer','player',3,0),
+    unit('target','slime','enemy',3,2,2),unit('guard','golem','enemy',4,2,1),unit('ek','king','enemy',6,4)]);
+  const preview=predictMatchesAct(s,'actor','target');
+  assert.deepEqual(json(preview.events.filter(e=>e.type==='capture').map(e=>e.unitId)),['guard','target']);
+  const result=action(s,{type:'attack',unitId:'actor',targetId:'target'});
+  assert.deepEqual(json(result.events.filter(e=>e.type==='capture').map(e=>e.unitId)),['guard','target']);
+  assert.deepEqual(json(s.hands.player.map(u=>u.id)),['guard','target']); assert.equal(hits(result).length,2);
+  assert.equal(s.units.some(u=>u.id==='guard'||u.id==='target'),false); assert.equal(s.totalActions,1); assertInventory(s);
+});
+
+test('AI uses a captured golem to guard its threatened king and evaluates deployment without input mutation', () => {
+  const s=setup([unit('eK','king','enemy',6,2,1),unit('b1','slime','enemy',6,1),unit('b2','slime','enemy',6,3),
+    unit('pA','archer','player',3,2),unit('pK','king','player',0,4)],'enemy');
+  s.roster.push({id:'original-golem',type:'golem'}); hand(s,'handGolem','golem','enemy',{originSide:'player',rosterId:'original-golem'});
+  const before=json(s), selected=E.chooseAI(s); assert.deepEqual(json(s),before);
+  assert.equal(selected.type,'deploy'); assert.equal(selected.unitId,'handGolem'); assert.deepEqual([selected.x,selected.y],[5,2]);
+  action(s,selected); assert.equal(E.combatInfo(s,'eK').guardId,'handGolem');
+  assert.equal(E.predictAttack(s,'pA','eK').kingKilledId,null); assertInventory(s);
+});
+
+test('AI deployment can use hostile king-adjacent cells and always respects the board limit', () => {
+  const s=setup([unit('eK','king','enemy',6,4),unit('pK','king','player',0,2)],'enemy');
+  s.roster.push({id:'original-dragon',type:'dragon'}); hand(s,'handDragon','dragon','enemy',{originSide:'player',rosterId:'original-dragon'});
+  const before=json(s), selected=E.chooseAI(s); assert.deepEqual(json(s),before); assert.equal(selected.type,'deploy');
+  assert.equal(selected.unitId,'handDragon'); assert.ok(E.deploymentSquares(s,selected.unitId).some(p=>p.x===selected.x&&p.y===selected.y));
+  action(s,selected); assertInventory(s); assert.ok(E.targets(s,'handDragon').some(p=>p.id==='pK'));
+});
+
+
+test('Returning a surviving original ally at defeat is not predicted as attack damage', () => {
+  const s=setup([unit('pk','king','player',2,2,1),unit('owned','knight','player',6,0,7),
+    unit('actor','archer','enemy',4,2),unit('ek','king','enemy',6,4)],'enemy');
+  const owned=s.units.find(u=>u.id==='owned'), rosterId=owned.rosterId;
+  owned.side='enemy'; owned.currentSide='enemy';
+  const p=predictMatchesAct(s,'actor','pk'); assert.deepEqual(json(p.damageById),{pk:1});
+  const returned=p.state.hands.player.find(u=>u.id==='owned');
+  assert.deepEqual([returned.hp,returned.rosterId,returned.originSide,returned.currentSide,returned.location],[7,rosterId,'player','player','hand']);
+  assert.equal(p.killedIds.includes('owned'),false); assert.equal(p.events.some(e=>e.type==='capture'&&e.unitId==='owned'),false);
+});
+
+test('AI never deploys above twelve board units even with a valid captured individual in its hand', () => {
+  const s=E.createRun(); s.phase='enemy';
+  const captive=s.units.find(u=>u.side==='player'&&u.type==='knight'); s.units=s.units.filter(u=>u.id!==captive.id);
+  captive.side='enemy'; captive.currentSide='enemy'; captive.location='hand'; captive.hp=0; captive.x=null; captive.y=null;
+  s.hands.enemy.push(captive);
+  assert.equal(s.units.filter(u=>u.side==='enemy').length,12); assert.deepEqual(json(E.deploymentSquares(s,captive.id)),[]);
+  const before=json(s), selected=E.chooseAI(s); assert.deepEqual(json(s),before); assert.notEqual(selected.type,'deploy');
+  action(s,selected); assertInventory(s);
+});
+
+
+test('AI can deploy a captured knight to create an inspired archer king-kill opportunity', () => {
+  const s=setup([unit('eA','archer','enemy',0,0),unit('eK','king','enemy',6,4),unit('pK','king','player',3,0,3)],'enemy');
+  const rosterId=s.roster.find(r=>r.type==='knight').id; hand(s,'hN','knight','enemy',{originSide:'player',rosterId});
+  assert.equal(E.predictAttack(s,'eA','pK').kingKilledId,null);
+  const before=json(s), selected=E.chooseAI(s); assert.deepEqual(json(s),before);
+  assert.equal(selected.type,'deploy'); assert.equal(selected.unitId,'hN'); action(s,selected);
+  assert.equal(E.combatInfo(s,'eA').atk,3); const nextEnemyTurn=json(s); nextEnemyTurn.phase='enemy';
+  assert.equal(E.predictAttack(nextEnemyTurn,'eA','pK').kingKilledId,'pK'); assertInventory(s);
 });
 
 let failed=0;

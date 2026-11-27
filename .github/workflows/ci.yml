@@ -35,6 +35,8 @@ jobs:
         run: npm run test:engine
       - name: Verify passive predictions against independent calculation
         run: npm run test:oracle
+      - name: Verify captured individual identity and settlement
+        run: npm run test:inventory
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Verify browser controls
