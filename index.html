@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111d23">
-<title>セカソコ！～手駒編～ | VER.005</title>
+<title>セカソコ！～手駒編～ | VER.006</title>
 <style>
 :root{color-scheme:dark;--ink:#eee9dc;--muted:#9daeb2;--gold:#d6bb80;--line:#b5a87d38;--blue:#9bdaee;--red:#edb1a1;--panel:#17262c;--edge:14px;--frame:10px;--depth:8px;--gap:12px;--arena-label:21px;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans CJK JP","Hiragino Kaku Gothic ProN",sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:#101b20;color:var(--ink)}button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid var(--line);border-radius:6px;background:#24363c;padding:9px 14px}button:hover:not(:disabled){filter:brightness(1.12)}button:focus-visible{outline:2px solid #e6f9ff;outline-offset:2px}button:disabled{cursor:default;opacity:.5}[hidden]{display:none!important}.primary{background:linear-gradient(#e0c994,#bfa064);color:#1d292b;border-color:#ead3a4;font-weight:700;box-shadow:0 3px 12px #0004}.quiet{background:transparent;color:var(--muted)}h1,h2,h3,p{margin:0}.serif,h1,h2,h3{font-family:"Noto Serif CJK JP","Hiragino Mincho ProN","Yu Mincho",serif}.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--gold)}small{font-size:10px}
@@ -48,6 +48,9 @@
 @media(orientation:landscape) and (min-height:600px){.inspector-body{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto;gap:0}.portrait{grid-row:auto;font-size:clamp(80px,28cqh,200px)}.portrait:after{left:18%;right:18%;bottom:10%}.identity{display:flex;align-items:baseline;justify-content:space-between;gap:7px;padding-bottom:12px}.unit-title{font-size:23px}.side-tag{font-size:7px}.stats{grid-template-columns:repeat(4,minmax(0,1fr));padding:12px 0 15px;gap:9px}.stat{flex-direction:column;align-items:center;font-size:9px}.stat b{font-size:15px}.stat.wide{flex-direction:row}.skill-btn{min-height:42px;font-size:10px}.skill-btn small{font-size:7px}.action-footer,.action-note{height:25px}.action-note{font-size:8px}.panel-head{font-size:10px}.inspector .panel-head{height:15px}}
 @media(max-width:370px) and (orientation:portrait){:root{--edge:11px;--frame:8px;--gap:8px}.app{padding-top:max(6px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}.command-region{height:220px;gap:7px}.utility-btn{font-size:7px;min-height:23px;padding:3px 8px}.topbar{gap:4px}.journey{min-height:29px;padding-top:5px}.floor-badge{font-size:22px}.floor-name{font-size:8px}.phase{gap:4px}.phase-pill{font-size:7px;padding:4px 6px}.turn{font-size:6px}.inspector{padding:8px 9px}.inspector-body{column-gap:8px}.identity{padding-bottom:4px}.unit-title{font-size:15px}.side-tag{font-size:4px}.stats{gap:4px 5px;padding:4px 0 6px}.stat{font-size:6px}.stat b{font-size:10px}.stat small{font-size:7px}.portrait{font-size:clamp(38px,min(40cqh,25cqw),90px)}.skill-actions{gap:5px;padding-top:5px}.skill-btn{min-height:30px;font-size:7px}.skill-btn small{font-size:5px}.action-note{font-size:6px}.version{font-size:6px}}
 @media(max-width:600px){.modal{padding:20px 15px}.modal h2{font-size:21px}.roster{grid-template-columns:repeat(2,minmax(0,1fr))}.modal-actions{flex-wrap:wrap}.modal-note{flex-basis:100%}.rules-grid{grid-template-columns:1fr}.modal-actions .primary{width:100%;min-width:0}.formation-bar{align-items:flex-start;font-size:10px}.formation-bar small{display:block;font-size:8px;margin-top:3px}.ending h2{font-size:23px}}
+/* Passive details scroll inside the existing fixed inspector footprint. */
+.inspector-body{grid-template-rows:minmax(0,1fr);align-items:stretch}.inspector-body>.portrait{grid-row:1;grid-column:1}.status-copy{grid-row:1;grid-column:2;min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scroll-padding:4px;padding:4px 3px 3px 0}.panel-head #selectedMark{font-size:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status-copy:focus-visible{outline:1px solid #a2c9d16b;outline-offset:1px}.status-copy .identity{align-self:start}.atk-breakdown{display:block;font-size:6px!important;color:var(--gold)!important;line-height:1.5;white-space:nowrap}.passive-info,.protection-info{font-size:9px;line-height:1.65;color:var(--muted);overflow-wrap:anywhere}.protection-info{padding:5px 0;border-top:1px solid #ffffff16;color:#bdd9dc}.protection-info span{white-space:nowrap}.passive-info{padding-top:4px}.passive-description b{color:var(--gold);font-size:10px;font-weight:500}.passive-description p{margin:2px 0 5px}.passive-cue{position:absolute;z-index:11;transform:translate(-50%,-110%);pointer-events:none;white-space:nowrap;font-size:9px;padding:3px 6px;color:#f4dfad;border:1px solid #dfca8d80;border-radius:4px;background:#213b42e8;box-shadow:0 2px 7px #0005}
+@media(orientation:landscape) and (min-height:600px){.inspector-body{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(80px,1fr) minmax(0,1fr)}.inspector-body>.portrait{grid-row:1;grid-column:1}.status-copy{grid-row:2;grid-column:1}.atk-breakdown{font-size:8px!important}.passive-info,.protection-info{font-size:11px}.passive-description b{font-size:12px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}.floating-damage{animation-duration:.01s}}
 </style>
 </head>
@@ -58,7 +61,7 @@
 <main class="battle-layout">
  <section class="command-region" id="commandRegion">
  <header class="topbar" id="hud">
- <div class="topline"><span class="version">VER.005</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
+ <div class="topline"><span class="version">VER.006</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
  <div class="journey"><div class="floor-line"><div class="floor-badge"><span id="floorNum">1</span><small> F</small></div><div class="floor-name"><b id="floorTitle">はじまりの回廊</b></div></div><div class="phase"><span class="turn" id="turnNum">TURN 01</span><span class="phase-pill" id="phaseBadge" aria-live="polite">あなたの手番</span></div></div>
 </header>
  <aside class="panel inspector" id="inspector"><div class="panel-head"><span>PIECE STATUS</span><span id="selectedMark">未選択</span></div><div class="inspector-body" id="inspectorBody"></div><div class="skill-actions inactive" id="skillActions"><button class="skill-btn" id="normalAttackBtn" aria-pressed="false">通常攻撃<small>射程内の敵を選択</small></button><button class="skill-btn" id="uniqueSkillBtn" disabled>固有技<small>未実装</small></button><button class="skill-btn" id="ultimateSkillBtn" disabled>必殺技<small>未実装</small></button></div><div class="action-footer"><div class="action-note" id="boardHint" aria-live="polite"></div><button class="cancel-attack" id="cancelAttackBtn" hidden>攻撃をやめる</button></div></aside>
@@ -107,6 +110,27 @@ const ARMY_RULES = Object.freeze({
     [4,0], [4,1], [4,2], [4,3], [4,4], [5,1], [5,3],
     [6,0], [6,1], [6,3], [6,4]
   ].map(([x,y]) => Object.freeze({x,y})))
+});
+
+/* VER.006 passive definitions and character loadouts share one extensible registry. */
+const PASSIVES = Object.freeze({
+  supportFire: Object.freeze({
+    id: 'supportFire', name: '支援射撃', trigger: 'allyNormalAttack', damageMultiplier: 1,
+    description: '味方が通常攻撃した敵が射程内にいると、実効ATK100%で1回追撃。自身の攻撃と追撃からは発動しない。'
+  }),
+  inspiration: Object.freeze({
+    id: 'inspiration', name: '鼓舞', trigger: 'adjacentAllyAttack', bonusMultiplier: 0.5,
+    description: '上下左右に隣接する味方のATKを基礎値の50%強化。複数の騎士の効果は加算し、最後に端数切り捨て。'
+  }),
+  stoneWall: Object.freeze({
+    id: 'stoneWall', name: '守護の石壁', trigger: 'adjacentAllyHit', damageShare: 1,
+    description: '上下左右に隣接する味方へのダメージを全て肩代わり。現在HP最大、同値なら個体ID順。超過ダメージや身代わりは連鎖しない。'
+  })
+});
+const PASSIVE_LOADOUTS = Object.freeze({
+  archer: Object.freeze(['supportFire']),
+  knight: Object.freeze(['inspiration']),
+  golem: Object.freeze(['stoneWall'])
 });
 
 /* Pure battle rules. UI and animation are deliberately outside this module. */
@@ -215,6 +239,96 @@ const Engine = (() => {
     return state.units.filter(target => target.hp > 0 && target.side !== actor.side && distance(actor, target) <= MASTER[actor.type].range);
   }
 
+  const compareIds = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  const byId = (a, b) => compareIds(a.id, b.id);
+  const hasPassive = (piece, passiveId) => (PASSIVE_LOADOUTS[piece.type] || []).includes(passiveId);
+
+  function passivesFor(type) {
+    return (PASSIVE_LOADOUTS[type] || []).map(id => PASSIVES[id]);
+  }
+
+  function guardsFor(state, target) {
+    return state.units.filter(piece => piece.hp > 0 && piece.side === target.side
+      && hasPassive(piece, 'stoneWall') && distance(piece, target) === 1)
+      .sort((a, b) => b.hp - a.hp || byId(a, b));
+  }
+
+  function combatInfo(state, unitId) {
+    const actor = find(state, unitId);
+    if (!actor || actor.hp <= 0) return null;
+    const knights = state.units.filter(piece => piece.hp > 0 && piece.side === actor.side
+      && hasPassive(piece, 'inspiration') && distance(piece, actor) === 1).sort(byId);
+    const baseAtk = MASTER[actor.type].atk;
+    const atk = Math.floor(baseAtk * (1 + knights.length * PASSIVES.inspiration.bonusMultiplier));
+    const guards = guardsFor(state, actor);
+    return {
+      baseAtk, atk, bonusAtk: atk - baseAtk, knightIds: knights.map(piece => piece.id),
+      passives: passivesFor(actor.type), guardId: guards[0]?.id || null, guardIds: guards.map(piece => piece.id)
+    };
+  }
+
+  function defeated(state, target, events) {
+    events.push({ type: 'death', unitId: target.id, unitType: target.type, side: target.side });
+    state.units = state.units.filter(piece => piece.id !== target.id);
+    append(state, `${target.side === 'player' ? '味方' : '敵'}の${MASTER[target.type].name}を撃破。`);
+    if (target.side === 'enemy' && target.type !== 'king') {
+      state.candidates.push(target.type);
+      events.push({ type: 'candidate', unitType: target.type });
+      append(state, `${MASTER[target.type].name}が獲得候補に！`);
+    }
+    if (target.type !== 'king') return;
+    if (target.side === 'enemy') {
+      state.lastRewards = state.candidates.slice();
+      state.roster.push(...state.lastRewards.map(type => rosterPiece(state, type)));
+      state.candidates = [];
+      state.phase = state.floor === 10 ? 'clear' : 'victory';
+      append(state, state.phase === 'clear' ? '10F踏破！ 試作版クリア！' : `${state.floor}Fクリア！ 手駒${state.lastRewards.length}体を獲得。`);
+      events.push({ type: state.phase, rewards: state.lastRewards.slice() });
+    } else {
+      state.candidates = [];
+      state.lastRewards = [];
+      state.phase = 'defeat';
+      append(state, '味方の王が倒れた。今回の獲得候補は失われた。');
+      events.push({ type: 'defeat' });
+    }
+  }
+
+  // Each strike uses the current board. Redirect only once; excess never reaches the original target.
+  function resolveStrike(state, actorId, originalTargetId, followUp, events) {
+    const actor = find(state, actorId), original = find(state, originalTargetId);
+    if (!active(state) || !actor || actor.hp <= 0 || !original || original.hp <= 0) return;
+    const multiplier = followUp ? PASSIVES.supportFire.damageMultiplier : 1;
+    const damage = Math.max(1, Math.floor(combatInfo(state, actor.id).atk * multiplier));
+    const guard = guardsFor(state, original)[0];
+    const target = guard || original;
+    if (guard) {
+      events.push({ type: 'guard', unitId: guard.id, protectedId: original.id, attackerId: actor.id, damage });
+      append(state, `${MASTER[guard.type].name}が${MASTER[original.type].name}を守護。${damage}ダメージを肩代わり。`);
+    }
+    const hpBefore = target.hp;
+    target.hp = Math.max(0, target.hp - damage);
+    events.push({
+      type: 'attack', unitId: actor.id, targetId: target.id, originalTargetId: original.id,
+      damage, followUp, hpBefore, hpAfter: target.hp
+    });
+    append(state, `${actor.side === 'player' ? '味方' : '敵'}の${MASTER[actor.type].name}${followUp ? 'の支援射撃' : ''} → ${MASTER[target.type].name}に${damage}ダメージ。`);
+    if (target.hp === 0) defeated(state, target, events);
+  }
+
+  function resolveAttack(state, actorId, targetId, events) {
+    const actor = find(state, actorId);
+    resolveStrike(state, actorId, targetId, false, events);
+    if (!active(state) || !find(state, targetId)) return;
+    const supporters = state.units.filter(piece => piece.hp > 0 && piece.side === actor.side
+      && piece.id !== actorId && hasPassive(piece, 'supportFire')).sort(byId).map(piece => piece.id);
+    for (const id of supporters) {
+      const supporter = find(state, id), original = find(state, targetId);
+      if (!active(state) || !original || original.hp <= 0) break;
+      if (!supporter || supporter.hp <= 0 || distance(supporter, original) > MASTER[supporter.type].range) continue;
+      resolveStrike(state, supporter.id, targetId, true, events);
+    }
+  }
+
   function act(state, action) {
     const events = [];
     const invalid = error => ({ ok: false, error, events });
@@ -237,38 +351,8 @@ const Engine = (() => {
       events.push({ type: 'move', unitId: actor.id, from, to: { x: actor.x, y: actor.y }, path: move.path });
       append(state, `${sideName}の${MASTER[actor.type].name}が移動。`);
     } else if (action.type === 'attack') {
-      const target = targets(state, actor.id).find(item => item.id === action.targetId);
-      if (!target) return invalid('その駒には攻撃できないよ。');
-      const damage = MASTER[actor.type].atk;
-      target.hp = Math.max(0, target.hp - damage);
-      events.push({ type: 'attack', unitId: actor.id, targetId: target.id, damage });
-      append(state, `${sideName}の${MASTER[actor.type].name} → ${MASTER[target.type].name}に${damage}ダメージ。`);
-      if (target.hp === 0) {
-        events.push({ type: 'death', unitId: target.id, unitType: target.type, side: target.side });
-        state.units = state.units.filter(piece => piece.id !== target.id);
-        append(state, `${target.side === 'player' ? '味方' : '敵'}の${MASTER[target.type].name}を撃破。`);
-        if (target.side === 'enemy' && target.type !== 'king') {
-          state.candidates.push(target.type);
-          events.push({ type: 'candidate', unitType: target.type });
-          append(state, `${MASTER[target.type].name}が獲得候補に！`);
-        }
-        if (target.type === 'king') {
-          if (target.side === 'enemy') {
-            state.lastRewards = state.candidates.slice();
-            state.roster.push(...state.lastRewards.map(type => rosterPiece(state, type)));
-            state.candidates = [];
-            state.phase = state.floor === 10 ? 'clear' : 'victory';
-            append(state, state.phase === 'clear' ? '10F踏破！ 試作版クリア！' : `${state.floor}Fクリア！ 手駒${state.lastRewards.length}体を獲得。`);
-            events.push({ type: state.phase, rewards: state.lastRewards.slice() });
-          } else {
-            state.candidates = [];
-            state.lastRewards = [];
-            state.phase = 'defeat';
-            append(state, '味方の王が倒れた。今回の獲得候補は失われた。');
-            events.push({ type: 'defeat' });
-          }
-        }
-      }
+      if (!targets(state, actor.id).some(target => target.id === action.targetId)) return invalid('その駒には攻撃できないよ。');
+      resolveAttack(state, actor.id, action.targetId, events);
     } else {
       events.push({ type: 'wait', side: state.phase, unitId: actor ? actor.id : null });
       append(state, `${sideName}${actor ? 'の' + MASTER[actor.type].name : ''}は待機。`);
@@ -281,9 +365,34 @@ const Engine = (() => {
     return { ok: true, events };
   }
 
-  function threatAt(state, position, opponentSide) {
-    return state.units.filter(piece => piece.side === opponentSide && distance(piece, position) <= MASTER[piece.type].range)
-      .reduce((max, piece) => Math.max(max, MASTER[piece.type].atk), 0);
+  function predictAttack(state, actorId, targetId) {
+    const simulated = JSON.parse(JSON.stringify(state));
+    const result = act(simulated, { type: 'attack', unitId: actorId, targetId });
+    const remaining = new Map(simulated.units.map(piece => [piece.id, piece.hp]));
+    const damageById = {};
+    for (const piece of state.units) {
+      const damage = piece.hp - (remaining.get(piece.id) || 0);
+      if (damage > 0) damageById[piece.id] = damage;
+    }
+    const deaths = result.events.filter(event => event.type === 'death');
+    return {
+      ...result, state: simulated, damageById, killedIds: deaths.map(event => event.unitId),
+      kingKilledId: deaths.find(event => event.unitType === 'king')?.unitId || null,
+      terminal: !active(simulated)
+    };
+  }
+
+  // One opposing action, including all guards and follow-ups, on the candidate board.
+  function forecastThreats(state, opponentSide) {
+    const forecast = { ...state, phase: opponentSide };
+    const damage = new Map();
+    for (const attacker of forecast.units.filter(piece => piece.side === opponentSide && piece.hp > 0).sort(byId)) {
+      for (const target of targets(forecast, attacker.id)) {
+        const predicted = predictAttack(forecast, attacker.id, target.id);
+        for (const [id, loss] of Object.entries(predicted.damageById)) damage.set(id, Math.max(damage.get(id) || 0, loss));
+      }
+    }
+    return damage;
   }
 
   function firingDistance(state, actor, position, opponents) {
@@ -305,18 +414,23 @@ const Engine = (() => {
 
   function chooseAI(state) {
     if (state.phase !== 'enemy') return { type: 'wait' };
-    const enemies = state.units.filter(piece => piece.side === 'enemy');
-    const opponents = state.units.filter(piece => piece.side === 'player');
-    let bestAttack = null;
-    let attackScore = -Infinity;
+    const enemies = state.units.filter(piece => piece.side === 'enemy' && piece.hp > 0).sort(byId);
+    const opponents = state.units.filter(piece => piece.side === 'player' && piece.hp > 0).sort(byId);
+    const ownKing = enemies.find(piece => piece.type === 'king');
+    const playerKing = opponents.find(piece => piece.type === 'king');
+    let currentRisks;
+    const risksNow = () => currentRisks || (currentRisks = forecastThreats(state, 'player'));
+    const scoreAttack = predicted => {
+      const loss = Object.values(predicted.damageById).reduce((sum, damage) => sum + damage, 0);
+      return (predicted.kingKilledId === playerKing?.id ? 1000000 : 0)
+        + predicted.killedIds.length * 10000 + loss * 10 + (predicted.damageById[playerKing?.id] || 0) * 40;
+    };
+    let bestAttack = null, attackScore = -Infinity;
     for (const actor of enemies) {
-      for (const target of targets(state, actor.id)) {
-        const damage = MASTER[actor.type].atk;
-        const lethal = target.hp <= damage;
-        const retaliation = threatAt(state, actor, 'player');
-        const score = (target.type === 'king' && lethal ? 100000 : 0) + (lethal ? 1000 : 0)
-          + (target.type === 'king' ? 80 : 0) + Math.min(damage, target.hp) * 10
-          + MASTER[target.type].atk * 2 - (actor.type === 'king' && retaliation >= actor.hp && !lethal ? 25 : 0);
+      for (const target of targets(state, actor.id).sort(byId)) {
+        const predicted = predictAttack(state, actor.id, target.id);
+        let score = scoreAttack(predicted);
+        if (actor.type === 'king' && !predicted.kingKilledId && (risksNow().get(actor.id) || 0) >= actor.hp) score -= 25;
         if (score > attackScore) {
           bestAttack = { type: 'attack', unitId: actor.id, targetId: target.id };
           attackScore = score;
@@ -325,26 +439,33 @@ const Engine = (() => {
     }
     if (bestAttack) return bestAttack;
 
-    let bestMove = null;
-    let moveScore = -Infinity;
-    let progressMove = null;
-    let progressScore = -Infinity;
+    const currentKingRisk = ownKing ? risksNow().get(ownKing.id) || 0 : 0;
+    let bestMove = null, moveScore = -Infinity, progressMove = null, progressScore = -Infinity;
     for (const actor of enemies) {
       const stats = MASTER[actor.type];
-      const currentThreat = threatAt(state, actor, 'player');
+      const currentThreat = risksNow().get(actor.id) || 0;
       const currentGap = firingDistance(state, actor, actor, opponents);
       for (const move of moves(state, actor.id)) {
-        const threat = threatAt(state, move, 'player');
-        const attackable = opponents.filter(target => distance(move, target) <= stats.range);
+        const simulated = { ...state, units: state.units.map(piece => piece.id === actor.id ? { ...piece, x: move.x, y: move.y } : piece) };
+        const risks = forecastThreats(simulated, 'player');
+        const threat = risks.get(actor.id) || 0;
+        const kingRisk = ownKing ? risks.get(ownKing.id) || 0 : 0;
+        const attackable = targets(simulated, actor.id);
         const gap = firingDistance(state, actor, move, opponents);
         const history = state.history[actor.id] || [];
         const recent = history.slice(-2).some(position => position.x === move.x && position.y === move.y);
-        const king = opponents.find(target => target.type === 'king');
+        let futureDamage = 0, futureKill = false;
+        for (const target of attackable) {
+          const predicted = predictAttack(simulated, actor.id, target.id);
+          futureDamage = Math.max(futureDamage, Object.values(predicted.damageById).reduce((sum, damage) => sum + damage, 0));
+          futureKill = futureKill || predicted.killedIds.length > 0;
+        }
         let score = (currentGap - gap) * 9 - gap * 2 + (attackable.length ? 24 : 0);
-        score += attackable.reduce((max, target) => Math.max(max, target.hp <= stats.atk ? 12 : 2), 0);
+        score += futureKill ? 12 : attackable.length ? 2 : 0;
+        score += futureDamage * 0.2;
         score -= recent ? 22 : 0;
         score -= move.path.length * 0.15;
-        score += king ? (distance(actor, king) - distance(move, king)) * 0.3 : 0;
+        score += playerKing ? (distance(actor, playerKing) - distance(move, playerKing)) * 0.3 : 0;
         if (actor.type === 'king') {
           score -= threat * 12;
           score += (currentThreat - threat) * 8;
@@ -354,13 +475,15 @@ const Engine = (() => {
           score -= Math.max(0, threat - currentThreat) * 0.6;
           if (threat >= actor.hp) score -= 7;
         }
-        // Distant, safe progress is still useful when the absolute distance penalty
-        // makes every primary score negative. Keep the same history preference.
-        if (gap < currentGap && (actor.type !== 'king' || threat === 0) && score > progressScore) {
+        if (ownKing && actor.id !== ownKing.id) {
+          score -= Math.max(0, kingRisk - currentKingRisk) * 8;
+          if (kingRisk >= ownKing.hp && currentKingRisk < ownKing.hp) score -= 1000;
+        }
+        const safeKing = !ownKing || kingRisk < ownKing.hp || currentKingRisk >= ownKing.hp;
+        if (gap < currentGap && (actor.type !== 'king' || threat === 0) && safeKing && score > progressScore) {
           progressMove = { type: 'move', unitId: actor.id, x: move.x, y: move.y };
           progressScore = score;
         }
-        // A quiet retreat solely to move again is worse than waiting.
         if (score > moveScore) {
           bestMove = { type: 'move', unitId: actor.id, x: move.x, y: move.y };
           moveScore = score;
@@ -385,10 +508,10 @@ const Engine = (() => {
     state.floor++;
     return startBattle(state);
   }
-  return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance });
+  return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance, combatInfo, passivesFor, predictAttack });
 })();
 
-globalThis.Sekasoko = { MASTER, ARMY_RULES, Engine };
+globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine };
 
 </script>
 <script>
@@ -453,7 +576,7 @@ function refreshPresentation() {
   // Engine.act has already committed. Reconcile only presentation, never actions or AI.
   if(presentationContext)presentationContext.skipVisual=true;
   for(const animation of activeAnimations)animation.cancel();
-  pieceLayer.querySelectorAll('.floating-damage').forEach(el=>el.remove());
+  pieceLayer.querySelectorAll('.floating-damage,.passive-cue').forEach(el=>el.remove());
   paintProjection();paintUnits();paintInspector();paintHighlights();
 }
 window.addEventListener('resize',refreshPresentation);
@@ -550,12 +673,19 @@ function paintUnits() {
 }
 function paintInspector() {
   const u=selected(), ally=u?.side==='player';
-  $('selectedMark').textContent=u?(ally?'味方':'敵'):'未選択';
+  const info=u?Engine.combatInfo(state,u.id):null;
+  const oldDetail=$('inspectorBody').querySelector('.status-copy');
+  const detailScroll=u&&oldDetail?.dataset.detailId===u.id?oldDetail.scrollTop:0;
+  $('selectedMark').textContent=u?`${ally?'味方':'敵'} · ${info.passives.map(p=>p.name).join('／')||'能力'} ↕`:'未選択';
   $('inspectorBody').classList.toggle('unselected',!u);
   $('inspectorBody').setAttribute('aria-hidden',u?'false':'true');
   const m=u?MASTER[u.type]:null;
   const stat=(label,value,wide=false)=>`<div class="stat ${wide?'wide':''}">${label}<b>${value}</b></div>`;
-  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${u.hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?u.hp/u.maxHp*100:0}%"></i></div>${stat('ATK',m?m.atk:'—')}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div>`;
+  const guard=info?.guardId?find(info.guardId):null;
+  const passiveText=info?.passives.length?info.passives.map(p=>`<div class="passive-description"><b>${p.name}</b><p>${p.description}</p></div>`).join(''):'<p>パッシブなし</p>';
+  const attackText=info?`<span class="effective-atk">${info.atk}</span><small class="atk-breakdown">基礎 ${info.baseAtk} ＋ ${info.bonusAtk}</small>`:'—';
+  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="status-copy" data-detail-id="${u?.id||''}" tabindex="${u?'0':'-1'}" role="region" aria-label="能力とパッシブ。スクロールで詳細を確認"><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${u.hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?u.hp/u.maxHp*100:0}%"></i></div>${stat('ATK',attackText)}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div><div class="protection-info" id="protectionInfo">${guard?`守護の石壁：ゴーレムが肩代わり <span>HP ${guard.hp}／${guard.maxHp}</span>`:'守護の石壁：保護なし'}</div><div class="passive-info" id="passiveInfo">${info?.knightIds.length?`<p class="inspiration-info">鼓舞：隣接する騎士 ${info.knightIds.length}体で強化中</p>`:""}${passiveText}</div></div>`;
+  $('inspectorBody').querySelector('.status-copy').scrollTop=detailScroll;
   const canAttack=ally&&!busy&&state.phase==='player'&&Engine.targets(state,u.id).length>0;
   $('skillActions').classList.toggle('inactive',!ally);
   $('skillActions').setAttribute('aria-hidden',ally?'false':'true');
@@ -626,6 +756,16 @@ async function animateEvents(events, context) {
       continue;
     }
     if(!canAnimate(context))continue;
+    if(e.type==='guard') {
+      const guardian=unitElements.get(e.unitId),point=context.positions.get(e.unitId);
+      if(!guardian||!point)continue;
+      board.dataset.animation='guard';
+      const cue=showPassiveCue('守護の石壁',point);
+      cue.dataset.sourceId=e.unitId;cue.dataset.effect='guard';
+      try {
+        await playVisual(guardian.querySelector('.token'),[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 8px #cce5c0)'},{filter:'brightness(1)'}],{duration:reducedMotion?1:context.guardDuration},context);
+      } finally {cue.remove();}
+    }
     if(e.type==='move') {
       const el=unitElements.get(e.unitId);if(!el)continue;
       board.dataset.animation='move';
@@ -636,37 +776,55 @@ async function animateEvents(events, context) {
     if(e.type==='attack') {
       const attacker=unitElements.get(e.unitId),target=unitElements.get(e.targetId);
       if(!attacker||!target)continue;
-      board.dataset.animation='attack';
+      board.dataset.animation=e.followUp?'support':'attack';
       const actorPoint=context.positions.get(e.unitId),targetPoint=context.positions.get(e.targetId);
       if(!actorPoint||!targetPoint)continue;
-      const a=Display.toDisplay(actorPoint,portraitView),t=Display.toDisplay(targetPoint,portraitView);
+      const aimPoint=context.positions.get(e.originalTargetId)||targetPoint;
+      const a=Display.toDisplay(actorPoint,portraitView),t=Display.toDisplay(aimPoint,portraitView);
       const {cols,rows}=Display.dimensions(portraitView),rect=board.getBoundingClientRect();
       const dx=(t.col-a.col)/cols*rect.width,dy=(t.row-a.row)/rows*rect.height,dist=Math.hypot(dx,dy)||1;
-      const complete=await playVisual(attacker.querySelector('.token'),[{transform:'translate(0,0)'},{transform:`translate(${dx/dist*15}px,${dy/dist*15}px) scale(1.06)`},{transform:'translate(0,0)'}],{duration:reducedMotion?1:220,easing:'ease-out'},context);
+      const cue=e.followUp?showPassiveCue('支援射撃',actorPoint):null;
+      if(cue){cue.dataset.sourceId=e.unitId;cue.dataset.effect='support';}
+      let complete;
+      try {
+        complete=await playVisual(attacker.querySelector('.token'),[{transform:'translate(0,0)'},{transform:`translate(${dx/dist*15}px,${dy/dist*15}px) scale(1.06)`},{transform:'translate(0,0)'}],{duration:reducedMotion?1:e.followUp?context.supportDuration:220,easing:'ease-out'},context);
+      } finally {cue?.remove();}
       if(!complete||!target.isConnected)continue;
       const damage=document.createElement('span');damage.className='floating-damage';damage.textContent=`−${e.damage}`;
+      damage.dataset.recipientId=e.targetId;damage.dataset.originalTargetId=e.originalTargetId||e.targetId;
       Object.assign(damage.style,displayPosition(targetPoint,.5,.35));pieceLayer.appendChild(damage);
-      const remaining=find(e.targetId);target.querySelector('.hp').textContent=remaining?remaining.hp:0;
-      target.querySelector('.hp-track i').style.width=`${remaining?remaining.hp/remaining.maxHp*100:0}%`;
-      await playVisual(target.querySelector('.token'),[{transform:'translateX(0)',filter:'brightness(2)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:reducedMotion?1:220},context);
+      const hp=e.hpAfter??find(e.targetId)?.hp??0;
+      target.querySelector('.hp').textContent=hp;
+      target.querySelector('.hp-track i').style.width=`${hp/context.maxHp.get(e.targetId)*100}%`;
+      await playVisual(target.querySelector('.token'),[{transform:'translateX(0)',filter:'brightness(2)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:reducedMotion?1:e.followUp?context.supportDuration*.75:220},context);
       setTimeout(()=>damage.remove(),700);
     }
     if(e.type==='death') {
       const el=unitElements.get(e.unitId),point=context.positions.get(e.unitId);
       if(el&&point) {
         board.dataset.animation='death';placeUnit(el,point);
-        await playVisual(el,[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:230,fill:'forwards'},context);
+        const complete=await playVisual(el,[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:context.deathDuration,fill:'forwards'},context);
+        if(complete){el.remove();unitElements.delete(e.unitId);}
       }
     }
   }
 }
 
+function showPassiveCue(text,point) {
+  const cue=document.createElement('span');cue.className='passive-cue';cue.textContent=text;
+  Object.assign(cue.style,displayPosition(point,.5,.25));pieceLayer.appendChild(cue);return cue;
+}
+
 async function doAction(action) {
   if(busy||!['player','enemy'].includes(state.phase))return;
   const token=generation;
-  const context={generation:token,revision:projectionRevision,skipVisual:false,positions:new Map(state.units.map(u=>[u.id,{x:u.x,y:u.y}]))};
+  const context={generation:token,revision:projectionRevision,skipVisual:false,positions:new Map(state.units.map(u=>[u.id,{x:u.x,y:u.y}])),maxHp:new Map(state.units.map(u=>[u.id,u.maxHp]))};
   const result=Engine.act(state,action);
   if(!result.ok){toast(result.error);return;}
+  // Bound added presentation time as more passives fire; combat still resolves in the engine once.
+  context.supportDuration=Math.max(28,Math.min(95,450/Math.max(1,result.events.filter(e=>e.type==='attack'&&e.followUp).length)));
+  context.guardDuration=Math.max(25,Math.min(90,220/Math.max(1,result.events.filter(e=>e.type==='guard').length)));
+  context.deathDuration=Math.max(45,Math.min(230,460/Math.max(1,result.events.filter(e=>e.type==='death').length)));
   presentationContext=context;attackMode=false;busy=true;render(true);
   try {await animateEvents(result.events,context);} catch(error) {console.error(error);}
   finally {if(presentationContext===context)presentationContext=null;delete board.dataset.animation;}
@@ -726,7 +884,7 @@ function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.005 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.006 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
@@ -736,7 +894,8 @@ function resetRun() {
   closeModal();render();toast('新しい探索が始まった。1Fから、もう一度！');
 }
 function showRules() {
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.005</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  const passiveRules=Object.keys(MASTER).flatMap(type=>Engine.passivesFor(type).map(p=>`${MASTER[type].name}「${p.name}」：${p.description}`)).join("<br>");
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.006</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータス内をスクロールして、強化や保護も確認しよう。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);

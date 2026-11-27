@@ -33,6 +33,8 @@ jobs:
         run: npm run check
       - name: Verify battle rules
         run: npm run test:engine
+      - name: Verify passive predictions against independent calculation
+        run: npm run test:oracle
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Verify browser controls

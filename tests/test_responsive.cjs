@@ -30,7 +30,7 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
  async function sparseBattle(){
    const anchor=await page.evaluate(()=>{
      const s=__qaState,id=s.units.find(u=>u.side==='player'&&u.type==='king').id;s.roster=['knight','archer','slime'].map(type=>s.roster.find(p=>p.type===type));s.formation=s.roster.map(p=>p.id);
-     const defs=[['king','player',0,2],['knight','player',1,1],['archer','player',1,2],['slime','player',1,3],['king','enemy',6,2],['slime','enemy',5,1],['goblin','enemy',5,2],['slime','enemy',5,3]];
+     const defs=[['king','player',0,2],['knight','player',1,1],['archer','player',0,4],['slime','player',1,4],['king','enemy',6,2],['slime','enemy',5,1],['goblin','enemy',5,2],['slime','enemy',5,3]];
      s.units=defs.map(([type,side,x,y],i)=>({id:i?`qa-sparse-${i}`:id,type,side,x,y,hp:Sekasoko.MASTER[type].hp,maxHp:Sekasoko.MASTER[type].hp}));s.history={};return id;
    });await page.locator(`[data-unit-id="${anchor}"]`).click();await page.locator(`[data-unit-id="${anchor}"]`).click();
  }
@@ -40,6 +40,9 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
    const id=await page.evaluate(type=>__qaState.units.find(u=>u.type===type&&u.side==='player').id,type);
    await page.locator(`[data-unit-id="${id}"]`).click();return id;
  }
+ async function installUnits(defs){const anchor=await page.evaluate(defs=>{const s=__qaState,id=s.units.find(u=>u.side==='player'&&u.type==='king').id;s.units=defs.map((d,i)=>({...d,id:i===0?id:d.id,hp:d.hp??Sekasoko.MASTER[d.type].hp,maxHp:Sekasoko.MASTER[d.type].hp}));s.history={};return id;},defs);await page.locator(`[data-unit-id="${anchor}"]`).click();await page.locator(`[data-unit-id="${anchor}"]`).click();}
+ async function passiveFixture(royal=false,viewport=PORTRAIT){await load(viewport);const defs=[{id:'qa-chain-pk',type:'king',side:'player',x:0,y:2},{id:'qa-chain-orc',type:'orc',side:'player',x:3,y:2},{id:'qa-chain-a1',type:'archer',side:'player',x:2,y:2},{id:'qa-chain-a2',type:'archer',side:'player',x:3,y:0},{id:'qa-chain-guard',type:'golem',side:'enemy',x:4,y:1,hp:3}];if(royal)defs.push({id:'qa-chain-target',type:'king',side:'enemy',x:4,y:2,hp:3},{id:'qa-chain-a3',type:'archer',side:'player',x:3,y:3});else defs.push({id:'qa-chain-target',type:'goblin',side:'enemy',x:4,y:2,hp:5},{id:'qa-chain-ek',type:'king',side:'enemy',x:6,y:2});await installUnits(defs);return{actor:'qa-chain-orc',target:'qa-chain-target',guard:'qa-chain-guard'};}
+ async function observePassiveNotifications(){await page.evaluate(()=>{globalThis.__qaPassiveNotifications=[];globalThis.__qaPassiveCues=[];new MutationObserver(()=>{if(document.querySelector('#toast').textContent.startsWith('駒入手！'))__qaPassiveNotifications.push(document.querySelector('#toast').textContent);}).observe(document.querySelector('#toast'),{childList:true});new MutationObserver(rs=>{for(const r of rs)for(const n of r.addedNodes)if(n instanceof Element&&n.matches('.passive-cue'))__qaPassiveCues.push({source:n.dataset.sourceId,effect:n.dataset.effect});}).observe(document.querySelector('#pieceLayer'),{childList:true});});}
  async function selectedPresentation(){return {
    text:await page.locator('#inspectorBody').textContent(),
    selection:await page.locator('.unit.is-selected').getAttribute('data-unit-id'),
@@ -308,6 +311,35 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        await page.waitForTimeout(750);assert.deepEqual(await snapshot(),after);return after;
      }
      assert.deepEqual(await perform(true),await perform(false));await assertLayout();
+   });
+   for(const interrupt of ['guard','attack','death','support'])await check(`Passive-chain ${interrupt} rotation preserves actual recipients, one candidate and ${interrupt==='support'?'one royal reward with no AI':'one AI reply'}`,async()=>{
+     const royal=interrupt==='support';
+     async function perform(rotating){
+       const ids=await passiveFixture(royal,rotating?PORTRAIT:LANDSCAPE);await page.locator(`[data-unit-id="${ids.actor}"]`).click();await page.locator('#normalAttackBtn').click();const before=await snapshot();
+       const predicted=await page.evaluate(({actor,target})=>Sekasoko.Engine.predictAttack(__qaState,actor,target),ids);assert.equal(predicted.ok,true);assert.deepEqual(await snapshot(),before);assert.equal(predicted.damageById[ids.guard],3);assert.equal(predicted.state.units.find(u=>u.id===ids.target)?.hp,royal?undefined:1);
+       await observePassiveNotifications();await page.locator(`[data-unit-id="${ids.target}"]`).click();await stage(interrupt);
+       if(interrupt==='attack')await bumpDirection(ids.actor,before.units.find(u=>u.id===ids.target));
+       if(interrupt==='guard'||interrupt==='support'){
+         const cue=page.locator(`.passive-cue[data-effect="${interrupt}"]`).first();assert.equal(await cue.isVisible(),true);const source=await cue.getAttribute('data-source-id');assert.ok(interrupt==='guard'?source===ids.guard:['qa-chain-a1','qa-chain-a2'].includes(source));
+       }
+       if(rotating){const inFlight=await snapshot();assert.deepEqual(inFlight,predicted.state);await resize(LANDSCAPE);assert.deepEqual(await snapshot(),inFlight);await projectedUnits();if(interrupt==='death')await effectAnchors(ids.guard,before.units.find(u=>u.id===ids.guard));await page.screenshot({path:path.join(artifacts,`ver006-${interrupt}-chain-rotation.png`)});}
+       if(royal)await page.waitForSelector('#nextFloorBtn');else await ready();const after=await snapshot();assert.equal(after.totalActions,before.totalActions+(royal?1:2));assert.equal(after.turn,before.turn+(royal?0:2));assert.ok(!after.units.some(u=>u.id===ids.guard));
+       const notices=await page.evaluate(()=>__qaPassiveNotifications);assert.equal(notices.length,1);assert.match(notices[0],/ゴーレム/);assert.equal(await page.locator('#board .passive-cue').count(),0);
+       if(royal){assert.equal(after.phase,'victory');assert.equal(after.roster.length,before.roster.length+1);assert.deepEqual(after.lastRewards,['golem']);assert.deepEqual(after.candidates,[]);assert.equal(await page.locator('.rewards .loot-chip').count(),1);const cues=await page.evaluate(()=>__qaPassiveCues);assert.ok(!cues.some(c=>c.source==='qa-chain-a3'));await assertCTA('#nextFloorBtn');}
+       else{assert.equal(after.phase,'player');assert.equal(after.units.find(u=>u.id===ids.target).hp,1);assert.equal(after.units.find(u=>u.id===ids.actor).hp,7);assert.equal(after.roster.length,before.roster.length);assert.deepEqual(after.candidates,['golem']);await projectedUnits();await assertLayout();}
+       await page.waitForTimeout(750);assert.deepEqual(await snapshot(),after);return after;
+     }
+     const control=await perform(false),rotated=await perform(true);assert.deepEqual(rotated,control);
+   });
+   await check('Passive descriptions, enhanced ATK and enemy guardian details stay scroll reachable in compact panels without moving the board',async()=>{
+     for(const viewport of [{width:320,height:568},PORTRAIT,{width:844,height:330},LANDSCAPE]){
+       await load(viewport);await installUnits([{id:'qa-detail-pk',type:'king',side:'player',x:0,y:2},{id:'qa-detail-knight',type:'knight',side:'player',x:1,y:1},{id:'qa-detail-archer',type:'archer',side:'player',x:0,y:4},{id:'qa-detail-golem',type:'golem',side:'player',x:1,y:3},{id:'qa-detail-orc',type:'orc',side:'player',x:1,y:2},{id:'qa-detail-ek',type:'king',side:'enemy',x:6,y:2},{id:'qa-detail-enemy-orc',type:'orc',side:'enemy',x:4,y:2},{id:'qa-detail-enemy-knight',type:'knight',side:'enemy',x:4,y:1},{id:'qa-detail-enemy-golem',type:'golem',side:'enemy',x:4,y:3},{id:'qa-detail-enemy-archer',type:'archer',side:'enemy',x:5,y:0}]);
+       const before=await snapshot(),b=await boardRect();
+       for(const [id,name]of [['qa-detail-knight','鼓舞'],['qa-detail-archer','支援射撃'],['qa-detail-golem','守護の石壁'],['qa-detail-enemy-archer','支援射撃']]){
+         await page.locator(`[data-unit-id="${id}"]`).click();assert.match(await page.locator('#passiveInfo').textContent(),new RegExp(name));const p=page.locator('#passiveInfo .passive-description p');await p.scrollIntoViewIfNeeded();const bounds=await p.evaluate(e=>{const r=e.getBoundingClientRect(),c=e.closest('.status-copy').getBoundingClientRect();return{visible:e.checkVisibility({checkVisibilityCSS:true}),top:r.top,bottom:r.bottom,containerTop:c.top,containerBottom:c.bottom};});assert.equal(bounds.visible,true);assert.ok(bounds.top>=bounds.containerTop-1&&bounds.bottom<=bounds.containerBottom+1,JSON.stringify(bounds));await fixed(b);if(id.includes('enemy'))assert.equal(await page.locator('#skillActions').isVisible(),false);
+       }
+       await page.locator('[data-unit-id="qa-detail-enemy-orc"]').click();assert.equal((await page.locator('.effective-atk').textContent()).trim(),'4');assert.match(await page.locator('#protectionInfo').textContent(),/ゴーレム.*14/);await page.locator('#protectionInfo').scrollIntoViewIfNeeded();const box=await page.locator('#protectionInfo').boundingBox();assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=viewport.width+1&&box.y+box.height<=viewport.height+1);await fixed(b);assert.deepEqual(await snapshot(),before);await page.screenshot({path:path.join(artifacts,`ver006-passive-details-${viewport.width}x${viewport.height}.png`)});
+     }
    });
    await check('Help dialog survives both orientations and its return CTA remains scroll accessible',async()=>{
      await load();await page.locator('#menuBtn').click();await page.locator('#helpBtn').click();assert.equal(await page.locator('.master-table tbody tr').count(),10);

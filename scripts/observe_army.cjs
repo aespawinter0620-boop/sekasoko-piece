@@ -1,5 +1,5 @@
 'use strict';
-// VER.005 synthetic observations. No timing threshold, balance claim, or game-rule adjustment.
+// VER.006 synthetic observations. No timing threshold, balance claim, or game-rule adjustment.
 // Repeat with: npm run observe:army. JSON is written under ignored artifacts/.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -40,7 +40,7 @@ function summary(values) {
   };
 }
 function mirroredPlayerAction(engine, state) {
-  // Reuse the unchanged enemy policy as a synthetic player. IDs and move history survive the clone;
+  // Reuse the current enemy policy as a synthetic player. IDs and move history survive the clone;
   // sides swap so chooseAI sees the original player as its enemy-side actors.
   const mirrored = JSON.parse(JSON.stringify(state));
   mirrored.phase = 'enemy';
@@ -53,17 +53,17 @@ function layoutKey(state) {
     .map(u => `${u.id}:${u.side}:${u.type}:${u.x},${u.y}:${u.hp}`).join('|')}`;
 }
 function positionKey(piece) { return `${piece.x},${piece.y}`; }
-function fight(floor, seed, policy, enemyTimings) {
+function fight(floor, seed, policy, enemyTimings, allActTimings) {
   const {Engine: engine, MASTER} = loadEngine(seed);
   const state = engine.createRun();
   if (floor !== 1) { state.floor = floor; engine.startBattle(state); }
   const initialEnemyTypes = [...state.units.filter(u => u.side === 'enemy').map(u => u.type)];
-  const timings = [];
+  const timings = [], actionTimings = [];
   const count = {
-    plies: 0, invalidActions: 0, invalidBoardStates: 0,
-    player: {move: 0, attack: 0, wait: 0, captures: 0, reversals: 0},
-    enemy: {move: 0, attack: 0, wait: 0, captures: 0, reversals: 0},
-    longestNoDamagePlies: 0, longestEnemyWaitStreak: 0,
+    plies: 0, invalidActions: 0, invalidBoardStates: 0, aiStateMutations: 0,
+    player: {move: 0, attack: 0, wait: 0, captures: 0, reversals: 0, followUpHits: 0, guardActivations: 0},
+    enemy: {move: 0, attack: 0, wait: 0, captures: 0, reversals: 0, followUpHits: 0, guardActivations: 0},
+    longestNoDamagePlies: 0, longestEnemyWaitStreak: 0, maxHitsPerAction: 0,
     repeatedLayoutAndHp: 0, maxLayoutAndHpVisits: 1
   };
   let noDamage = 0, enemyWaitStreak = 0;
@@ -74,12 +74,21 @@ function fight(floor, seed, policy, enemyTimings) {
     const side = state.phase;
     let selected;
     if (side === 'enemy') {
+      const beforeState = JSON.stringify(state);
       const before = performance.now();
       selected = engine.chooseAI(state);
       const elapsed = performance.now() - before;
       timings.push(elapsed); enemyTimings.push(elapsed);
+      if (JSON.stringify(state) !== beforeState) {
+        count.aiStateMutations++;
+        invalidAction = {side, action: selected, error: 'chooseAI mutated the input state'};
+        break;
+      }
     } else selected = policy === 'wait-only' ? {type: 'wait'} : mirroredPlayerAction(engine, state);
+    const beforeAct = performance.now();
     const result = engine.act(state, selected);
+    const actElapsed = performance.now() - beforeAct;
+    actionTimings.push(actElapsed); allActTimings.push(actElapsed);
     if (!result.ok) {
       count.invalidActions++;
       invalidAction = {side, action: selected, error: result.error};
@@ -91,9 +100,14 @@ function fight(floor, seed, policy, enemyTimings) {
       enemyWaitStreak = selected.type === 'wait' ? enemyWaitStreak + 1 : 0;
       count.longestEnemyWaitStreak = Math.max(count.longestEnemyWaitStreak, enemyWaitStreak);
     }
-    let damage = false;
+    let damage = false, hitsThisAction = 0;
     for (const event of result.events) {
-      if (event.type === 'attack' && event.damage > 0) damage = true;
+      if (event.type === 'attack') {
+        hitsThisAction++;
+        if (event.damage > 0) damage = true;
+        if (event.followUp) count[side].followUpHits++;
+      }
+      if (event.type === 'guard') count[side].guardActivations++;
       if (event.type === 'death') count[side].captures++;
       if (event.type === 'move') {
         const history = positions.get(event.unitId) || [];
@@ -103,6 +117,7 @@ function fight(floor, seed, policy, enemyTimings) {
         positions.set(event.unitId, history.slice(-2));
       }
     }
+    count.maxHitsPerAction = Math.max(count.maxHitsPerAction, hitsThisAction);
     noDamage = damage ? 0 : noDamage + 1;
     count.longestNoDamagePlies = Math.max(count.longestNoDamagePlies, noDamage);
     const valid = new Set(state.units.map(positionKey)).size === state.units.length &&
@@ -117,7 +132,7 @@ function fight(floor, seed, policy, enemyTimings) {
   }
   return {
     floor, seed, policy, initialEnemyTypes,
-    ended: invalidAction ? 'invalid-action' : count.invalidBoardStates ? 'invalid-board' :
+    ended: count.aiStateMutations ? 'ai-mutation' : invalidAction ? 'invalid-action' : count.invalidBoardStates ? 'invalid-board' :
       ['player', 'enemy'].includes(state.phase) ? 'action-cap' : state.phase,
     ...count,
     endingNoDamagePlies: noDamage,
@@ -125,21 +140,21 @@ function fight(floor, seed, policy, enemyTimings) {
     remainingEnemyUnits: state.units.filter(u => u.side === 'enemy').length,
     rewardsCommitted: state.lastRewards.length,
     finalUnits: [...state.units].map(({id,type,side,x,y,hp}) => ({id,type,side,x,y,hp})),
-    chooseAI: summary(timings),
+    chooseAI: summary(timings), act: summary(actionTimings),
     ...(invalidAction ? {invalidAction} : {})
   };
 }
 
 const started = performance.now();
-const allTimings = [], fights = [];
+const allTimings = [], allActTimings = [], fights = [];
 for (const floor of FLOOR_SAMPLE) for (const seed of SEEDS) for (const policy of ['wait-only', 'mirrored-ai']) {
-  fights.push(fight(floor, seed, policy, allTimings));
+  fights.push(fight(floor, seed, policy, allTimings, allActTimings));
 }
 const sum = (key, side) => fights.reduce((total, f) => total + (side ? f[side][key] : f[key]), 0);
 const outcomes = Object.fromEntries([...new Set(fights.map(f => f.ended))].map(ended => [ended, fights.filter(f => f.ended === ended).length]));
 const report = {
-  version: 'VER.005',
-  purpose: 'Repeatable synthetic observations of the unchanged AI on 12-versus-12 armies; timing has no pass/fail threshold.',
+  version: 'VER.006',
+  purpose: 'Repeatable synthetic observations of three passive skills and prediction-aware AI on 12-versus-12 armies; timing has no pass/fail threshold.',
   generatedAt: new Date().toISOString(),
   engineSha256: crypto.createHash('sha256').update(source).digest('hex'),
   environment: {node: process.version, platform: process.platform, arch: process.arch, cpu: os.cpus()[0]?.model || 'unknown'},
@@ -151,7 +166,9 @@ const report = {
       'wait-only': 'Player always waits. This is an intentionally passive control, not representative human play.',
       'mirrored-ai': 'Player uses chooseAI on a cloned state with side labels swapped; no production behavior changes.'
     },
-    timingScope: 'Only original enemy chooseAI calls; VM startup, mirrored-player decisions, engine.act, rendering and animation excluded.',
+    timingScope: 'chooseAI measures only original enemy decisions including attack prediction. act measures each original successful/attempted action including passive resolution. VM startup, mirrored-player decisions, rendering and animation excluded.',
+    passives: 'Archer supportFire, knight inspiration and golem stoneWall use production rules on both sides. No skill strengths or AI scoring are tuned by this observation script.',
+    passiveCounts: 'followUpHits counts attack events with followUp=true; guardActivations counts guard events for the attacking side. maxHitsPerAction includes the normal hit and its support hits.',
     progress: 'No-damage plies count consecutive successful actions without damage; a capture also deals damage.',
     captures: 'Count successful death events, including kings; rewardsCommitted counts only acquired nonking enemies.',
     reversal: 'A moving piece returns to its previous occupied square on its next move, regardless of intervening actors.',
@@ -159,27 +176,31 @@ const report = {
   },
   total: {
     fights: fights.length, plies: sum('plies'), outcomes,
-    invalidActions: sum('invalidActions'), invalidBoardStates: sum('invalidBoardStates'),
+    invalidActions: sum('invalidActions'), invalidBoardStates: sum('invalidBoardStates'), aiStateMutations: sum('aiStateMutations'),
+    followUpHits: sum('followUpHits','player') + sum('followUpHits','enemy'),
+    guardActivations: sum('guardActivations','player') + sum('guardActivations','enemy'),
+    maxHitsPerAction: Math.max(...fights.map(f => f.maxHitsPerAction)),
     enemyWaits: sum('wait','enemy'), enemyReversals: sum('reversals','enemy'),
     longestNoDamagePlies: Math.max(...fights.map(f => f.longestNoDamagePlies)),
     longestEnemyWaitStreak: Math.max(...fights.map(f => f.longestEnemyWaitStreak)),
-    chooseAI: summary(allTimings), elapsedMs: Number((performance.now()-started).toFixed(2))
+    chooseAI: summary(allTimings), act: summary(allActTimings), elapsedMs: Number((performance.now()-started).toFixed(2))
   },
   limitations: [
     'Synthetic Node simulations do not establish human difficulty, overall balance, animation feel, or iPhone performance.',
     'Clock timing, generatedAt, and environment vary between machines and runs; fixed seeds reproduce compositions and actions for the same engine.',
     'Floors 1, 5 and 10 sample only three seeds and two fixed player policies. Floor 1 has a fixed enemy army, so its seeds repeat the same logical fight.',
-    'Observed waiting, reversals, or action-cap endings are reported without changing AI, turn timing, combat, or encounter weights.'
+    'Observed waiting, reversals, or action-cap endings are reported without tuning AI, turn timing, passive strengths, combat, or encounter weights.'
   ],
   fights
 };
-const output = path.join(root, 'artifacts', 'ver005-army-observation.json');
+const output = path.join(root, 'artifacts', 'ver006-army-observation.json');
 fs.mkdirSync(path.dirname(output), {recursive: true});
 fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
-console.log(`VER.005 synthetic army observations (${report.total.fights} fights, cap ${ACTION_CAP} actions/fight)`);
-console.log(`Outcomes: ${JSON.stringify(outcomes)}; actions ${report.total.plies}; invalid actions ${report.total.invalidActions}; invalid board states ${report.total.invalidBoardStates}`);
+console.log(`VER.006 synthetic army observations (${report.total.fights} fights, cap ${ACTION_CAP} actions/fight)`);
+console.log(`Outcomes: ${JSON.stringify(outcomes)}; actions ${report.total.plies}; invalid actions ${report.total.invalidActions}; invalid board states ${report.total.invalidBoardStates}; AI input mutations ${report.total.aiStateMutations}`);
 console.log(`Enemy chooseAI: ${JSON.stringify(report.total.chooseAI)} (Node only; no timing threshold)`);
+console.log(`Action resolution: ${JSON.stringify(report.total.act)}; support hits ${report.total.followUpHits}; guard activations ${report.total.guardActivations}; max hits/action ${report.total.maxHitsPerAction}`);
 console.log(`Enemy waits ${report.total.enemyWaits}; reversals ${report.total.enemyReversals}; longest no-damage sequence ${report.total.longestNoDamagePlies} actions`);
 for (const f of fights) console.log(`  ${f.floor}F seed=${f.seed} ${f.policy}: ${f.ended}, ${f.plies} actions, captures=${f.player.captures}/${f.enemy.captures} (player/enemy), enemy waits=${f.enemy.wait}, reversals=${f.enemy.reversals}, longest no-damage=${f.longestNoDamagePlies}`);
 console.log(`Observation JSON: ${output}`);
-if (report.total.invalidActions || report.total.invalidBoardStates) process.exitCode = 1;
+if (report.total.invalidActions || report.total.invalidBoardStates || report.total.aiStateMutations) process.exitCode = 1;

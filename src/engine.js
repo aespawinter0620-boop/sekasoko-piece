@@ -35,6 +35,27 @@ const ARMY_RULES = Object.freeze({
   ].map(([x,y]) => Object.freeze({x,y})))
 });
 
+/* VER.006 passive definitions and character loadouts share one extensible registry. */
+const PASSIVES = Object.freeze({
+  supportFire: Object.freeze({
+    id: 'supportFire', name: '支援射撃', trigger: 'allyNormalAttack', damageMultiplier: 1,
+    description: '味方が通常攻撃した敵が射程内にいると、実効ATK100%で1回追撃。自身の攻撃と追撃からは発動しない。'
+  }),
+  inspiration: Object.freeze({
+    id: 'inspiration', name: '鼓舞', trigger: 'adjacentAllyAttack', bonusMultiplier: 0.5,
+    description: '上下左右に隣接する味方のATKを基礎値の50%強化。複数の騎士の効果は加算し、最後に端数切り捨て。'
+  }),
+  stoneWall: Object.freeze({
+    id: 'stoneWall', name: '守護の石壁', trigger: 'adjacentAllyHit', damageShare: 1,
+    description: '上下左右に隣接する味方へのダメージを全て肩代わり。現在HP最大、同値なら個体ID順。超過ダメージや身代わりは連鎖しない。'
+  })
+});
+const PASSIVE_LOADOUTS = Object.freeze({
+  archer: Object.freeze(['supportFire']),
+  knight: Object.freeze(['inspiration']),
+  golem: Object.freeze(['stoneWall'])
+});
+
 /* Pure battle rules. UI and animation are deliberately outside this module. */
 const Engine = (() => {
   const WIDTH = 7, HEIGHT = 5;
@@ -141,6 +162,96 @@ const Engine = (() => {
     return state.units.filter(target => target.hp > 0 && target.side !== actor.side && distance(actor, target) <= MASTER[actor.type].range);
   }
 
+  const compareIds = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  const byId = (a, b) => compareIds(a.id, b.id);
+  const hasPassive = (piece, passiveId) => (PASSIVE_LOADOUTS[piece.type] || []).includes(passiveId);
+
+  function passivesFor(type) {
+    return (PASSIVE_LOADOUTS[type] || []).map(id => PASSIVES[id]);
+  }
+
+  function guardsFor(state, target) {
+    return state.units.filter(piece => piece.hp > 0 && piece.side === target.side
+      && hasPassive(piece, 'stoneWall') && distance(piece, target) === 1)
+      .sort((a, b) => b.hp - a.hp || byId(a, b));
+  }
+
+  function combatInfo(state, unitId) {
+    const actor = find(state, unitId);
+    if (!actor || actor.hp <= 0) return null;
+    const knights = state.units.filter(piece => piece.hp > 0 && piece.side === actor.side
+      && hasPassive(piece, 'inspiration') && distance(piece, actor) === 1).sort(byId);
+    const baseAtk = MASTER[actor.type].atk;
+    const atk = Math.floor(baseAtk * (1 + knights.length * PASSIVES.inspiration.bonusMultiplier));
+    const guards = guardsFor(state, actor);
+    return {
+      baseAtk, atk, bonusAtk: atk - baseAtk, knightIds: knights.map(piece => piece.id),
+      passives: passivesFor(actor.type), guardId: guards[0]?.id || null, guardIds: guards.map(piece => piece.id)
+    };
+  }
+
+  function defeated(state, target, events) {
+    events.push({ type: 'death', unitId: target.id, unitType: target.type, side: target.side });
+    state.units = state.units.filter(piece => piece.id !== target.id);
+    append(state, `${target.side === 'player' ? '味方' : '敵'}の${MASTER[target.type].name}を撃破。`);
+    if (target.side === 'enemy' && target.type !== 'king') {
+      state.candidates.push(target.type);
+      events.push({ type: 'candidate', unitType: target.type });
+      append(state, `${MASTER[target.type].name}が獲得候補に！`);
+    }
+    if (target.type !== 'king') return;
+    if (target.side === 'enemy') {
+      state.lastRewards = state.candidates.slice();
+      state.roster.push(...state.lastRewards.map(type => rosterPiece(state, type)));
+      state.candidates = [];
+      state.phase = state.floor === 10 ? 'clear' : 'victory';
+      append(state, state.phase === 'clear' ? '10F踏破！ 試作版クリア！' : `${state.floor}Fクリア！ 手駒${state.lastRewards.length}体を獲得。`);
+      events.push({ type: state.phase, rewards: state.lastRewards.slice() });
+    } else {
+      state.candidates = [];
+      state.lastRewards = [];
+      state.phase = 'defeat';
+      append(state, '味方の王が倒れた。今回の獲得候補は失われた。');
+      events.push({ type: 'defeat' });
+    }
+  }
+
+  // Each strike uses the current board. Redirect only once; excess never reaches the original target.
+  function resolveStrike(state, actorId, originalTargetId, followUp, events) {
+    const actor = find(state, actorId), original = find(state, originalTargetId);
+    if (!active(state) || !actor || actor.hp <= 0 || !original || original.hp <= 0) return;
+    const multiplier = followUp ? PASSIVES.supportFire.damageMultiplier : 1;
+    const damage = Math.max(1, Math.floor(combatInfo(state, actor.id).atk * multiplier));
+    const guard = guardsFor(state, original)[0];
+    const target = guard || original;
+    if (guard) {
+      events.push({ type: 'guard', unitId: guard.id, protectedId: original.id, attackerId: actor.id, damage });
+      append(state, `${MASTER[guard.type].name}が${MASTER[original.type].name}を守護。${damage}ダメージを肩代わり。`);
+    }
+    const hpBefore = target.hp;
+    target.hp = Math.max(0, target.hp - damage);
+    events.push({
+      type: 'attack', unitId: actor.id, targetId: target.id, originalTargetId: original.id,
+      damage, followUp, hpBefore, hpAfter: target.hp
+    });
+    append(state, `${actor.side === 'player' ? '味方' : '敵'}の${MASTER[actor.type].name}${followUp ? 'の支援射撃' : ''} → ${MASTER[target.type].name}に${damage}ダメージ。`);
+    if (target.hp === 0) defeated(state, target, events);
+  }
+
+  function resolveAttack(state, actorId, targetId, events) {
+    const actor = find(state, actorId);
+    resolveStrike(state, actorId, targetId, false, events);
+    if (!active(state) || !find(state, targetId)) return;
+    const supporters = state.units.filter(piece => piece.hp > 0 && piece.side === actor.side
+      && piece.id !== actorId && hasPassive(piece, 'supportFire')).sort(byId).map(piece => piece.id);
+    for (const id of supporters) {
+      const supporter = find(state, id), original = find(state, targetId);
+      if (!active(state) || !original || original.hp <= 0) break;
+      if (!supporter || supporter.hp <= 0 || distance(supporter, original) > MASTER[supporter.type].range) continue;
+      resolveStrike(state, supporter.id, targetId, true, events);
+    }
+  }
+
   function act(state, action) {
     const events = [];
     const invalid = error => ({ ok: false, error, events });
@@ -163,38 +274,8 @@ const Engine = (() => {
       events.push({ type: 'move', unitId: actor.id, from, to: { x: actor.x, y: actor.y }, path: move.path });
       append(state, `${sideName}の${MASTER[actor.type].name}が移動。`);
     } else if (action.type === 'attack') {
-      const target = targets(state, actor.id).find(item => item.id === action.targetId);
-      if (!target) return invalid('その駒には攻撃できないよ。');
-      const damage = MASTER[actor.type].atk;
-      target.hp = Math.max(0, target.hp - damage);
-      events.push({ type: 'attack', unitId: actor.id, targetId: target.id, damage });
-      append(state, `${sideName}の${MASTER[actor.type].name} → ${MASTER[target.type].name}に${damage}ダメージ。`);
-      if (target.hp === 0) {
-        events.push({ type: 'death', unitId: target.id, unitType: target.type, side: target.side });
-        state.units = state.units.filter(piece => piece.id !== target.id);
-        append(state, `${target.side === 'player' ? '味方' : '敵'}の${MASTER[target.type].name}を撃破。`);
-        if (target.side === 'enemy' && target.type !== 'king') {
-          state.candidates.push(target.type);
-          events.push({ type: 'candidate', unitType: target.type });
-          append(state, `${MASTER[target.type].name}が獲得候補に！`);
-        }
-        if (target.type === 'king') {
-          if (target.side === 'enemy') {
-            state.lastRewards = state.candidates.slice();
-            state.roster.push(...state.lastRewards.map(type => rosterPiece(state, type)));
-            state.candidates = [];
-            state.phase = state.floor === 10 ? 'clear' : 'victory';
-            append(state, state.phase === 'clear' ? '10F踏破！ 試作版クリア！' : `${state.floor}Fクリア！ 手駒${state.lastRewards.length}体を獲得。`);
-            events.push({ type: state.phase, rewards: state.lastRewards.slice() });
-          } else {
-            state.candidates = [];
-            state.lastRewards = [];
-            state.phase = 'defeat';
-            append(state, '味方の王が倒れた。今回の獲得候補は失われた。');
-            events.push({ type: 'defeat' });
-          }
-        }
-      }
+      if (!targets(state, actor.id).some(target => target.id === action.targetId)) return invalid('その駒には攻撃できないよ。');
+      resolveAttack(state, actor.id, action.targetId, events);
     } else {
       events.push({ type: 'wait', side: state.phase, unitId: actor ? actor.id : null });
       append(state, `${sideName}${actor ? 'の' + MASTER[actor.type].name : ''}は待機。`);
@@ -207,9 +288,34 @@ const Engine = (() => {
     return { ok: true, events };
   }
 
-  function threatAt(state, position, opponentSide) {
-    return state.units.filter(piece => piece.side === opponentSide && distance(piece, position) <= MASTER[piece.type].range)
-      .reduce((max, piece) => Math.max(max, MASTER[piece.type].atk), 0);
+  function predictAttack(state, actorId, targetId) {
+    const simulated = JSON.parse(JSON.stringify(state));
+    const result = act(simulated, { type: 'attack', unitId: actorId, targetId });
+    const remaining = new Map(simulated.units.map(piece => [piece.id, piece.hp]));
+    const damageById = {};
+    for (const piece of state.units) {
+      const damage = piece.hp - (remaining.get(piece.id) || 0);
+      if (damage > 0) damageById[piece.id] = damage;
+    }
+    const deaths = result.events.filter(event => event.type === 'death');
+    return {
+      ...result, state: simulated, damageById, killedIds: deaths.map(event => event.unitId),
+      kingKilledId: deaths.find(event => event.unitType === 'king')?.unitId || null,
+      terminal: !active(simulated)
+    };
+  }
+
+  // One opposing action, including all guards and follow-ups, on the candidate board.
+  function forecastThreats(state, opponentSide) {
+    const forecast = { ...state, phase: opponentSide };
+    const damage = new Map();
+    for (const attacker of forecast.units.filter(piece => piece.side === opponentSide && piece.hp > 0).sort(byId)) {
+      for (const target of targets(forecast, attacker.id)) {
+        const predicted = predictAttack(forecast, attacker.id, target.id);
+        for (const [id, loss] of Object.entries(predicted.damageById)) damage.set(id, Math.max(damage.get(id) || 0, loss));
+      }
+    }
+    return damage;
   }
 
   function firingDistance(state, actor, position, opponents) {
@@ -231,18 +337,23 @@ const Engine = (() => {
 
   function chooseAI(state) {
     if (state.phase !== 'enemy') return { type: 'wait' };
-    const enemies = state.units.filter(piece => piece.side === 'enemy');
-    const opponents = state.units.filter(piece => piece.side === 'player');
-    let bestAttack = null;
-    let attackScore = -Infinity;
+    const enemies = state.units.filter(piece => piece.side === 'enemy' && piece.hp > 0).sort(byId);
+    const opponents = state.units.filter(piece => piece.side === 'player' && piece.hp > 0).sort(byId);
+    const ownKing = enemies.find(piece => piece.type === 'king');
+    const playerKing = opponents.find(piece => piece.type === 'king');
+    let currentRisks;
+    const risksNow = () => currentRisks || (currentRisks = forecastThreats(state, 'player'));
+    const scoreAttack = predicted => {
+      const loss = Object.values(predicted.damageById).reduce((sum, damage) => sum + damage, 0);
+      return (predicted.kingKilledId === playerKing?.id ? 1000000 : 0)
+        + predicted.killedIds.length * 10000 + loss * 10 + (predicted.damageById[playerKing?.id] || 0) * 40;
+    };
+    let bestAttack = null, attackScore = -Infinity;
     for (const actor of enemies) {
-      for (const target of targets(state, actor.id)) {
-        const damage = MASTER[actor.type].atk;
-        const lethal = target.hp <= damage;
-        const retaliation = threatAt(state, actor, 'player');
-        const score = (target.type === 'king' && lethal ? 100000 : 0) + (lethal ? 1000 : 0)
-          + (target.type === 'king' ? 80 : 0) + Math.min(damage, target.hp) * 10
-          + MASTER[target.type].atk * 2 - (actor.type === 'king' && retaliation >= actor.hp && !lethal ? 25 : 0);
+      for (const target of targets(state, actor.id).sort(byId)) {
+        const predicted = predictAttack(state, actor.id, target.id);
+        let score = scoreAttack(predicted);
+        if (actor.type === 'king' && !predicted.kingKilledId && (risksNow().get(actor.id) || 0) >= actor.hp) score -= 25;
         if (score > attackScore) {
           bestAttack = { type: 'attack', unitId: actor.id, targetId: target.id };
           attackScore = score;
@@ -251,26 +362,33 @@ const Engine = (() => {
     }
     if (bestAttack) return bestAttack;
 
-    let bestMove = null;
-    let moveScore = -Infinity;
-    let progressMove = null;
-    let progressScore = -Infinity;
+    const currentKingRisk = ownKing ? risksNow().get(ownKing.id) || 0 : 0;
+    let bestMove = null, moveScore = -Infinity, progressMove = null, progressScore = -Infinity;
     for (const actor of enemies) {
       const stats = MASTER[actor.type];
-      const currentThreat = threatAt(state, actor, 'player');
+      const currentThreat = risksNow().get(actor.id) || 0;
       const currentGap = firingDistance(state, actor, actor, opponents);
       for (const move of moves(state, actor.id)) {
-        const threat = threatAt(state, move, 'player');
-        const attackable = opponents.filter(target => distance(move, target) <= stats.range);
+        const simulated = { ...state, units: state.units.map(piece => piece.id === actor.id ? { ...piece, x: move.x, y: move.y } : piece) };
+        const risks = forecastThreats(simulated, 'player');
+        const threat = risks.get(actor.id) || 0;
+        const kingRisk = ownKing ? risks.get(ownKing.id) || 0 : 0;
+        const attackable = targets(simulated, actor.id);
         const gap = firingDistance(state, actor, move, opponents);
         const history = state.history[actor.id] || [];
         const recent = history.slice(-2).some(position => position.x === move.x && position.y === move.y);
-        const king = opponents.find(target => target.type === 'king');
+        let futureDamage = 0, futureKill = false;
+        for (const target of attackable) {
+          const predicted = predictAttack(simulated, actor.id, target.id);
+          futureDamage = Math.max(futureDamage, Object.values(predicted.damageById).reduce((sum, damage) => sum + damage, 0));
+          futureKill = futureKill || predicted.killedIds.length > 0;
+        }
         let score = (currentGap - gap) * 9 - gap * 2 + (attackable.length ? 24 : 0);
-        score += attackable.reduce((max, target) => Math.max(max, target.hp <= stats.atk ? 12 : 2), 0);
+        score += futureKill ? 12 : attackable.length ? 2 : 0;
+        score += futureDamage * 0.2;
         score -= recent ? 22 : 0;
         score -= move.path.length * 0.15;
-        score += king ? (distance(actor, king) - distance(move, king)) * 0.3 : 0;
+        score += playerKing ? (distance(actor, playerKing) - distance(move, playerKing)) * 0.3 : 0;
         if (actor.type === 'king') {
           score -= threat * 12;
           score += (currentThreat - threat) * 8;
@@ -280,13 +398,15 @@ const Engine = (() => {
           score -= Math.max(0, threat - currentThreat) * 0.6;
           if (threat >= actor.hp) score -= 7;
         }
-        // Distant, safe progress is still useful when the absolute distance penalty
-        // makes every primary score negative. Keep the same history preference.
-        if (gap < currentGap && (actor.type !== 'king' || threat === 0) && score > progressScore) {
+        if (ownKing && actor.id !== ownKing.id) {
+          score -= Math.max(0, kingRisk - currentKingRisk) * 8;
+          if (kingRisk >= ownKing.hp && currentKingRisk < ownKing.hp) score -= 1000;
+        }
+        const safeKing = !ownKing || kingRisk < ownKing.hp || currentKingRisk >= ownKing.hp;
+        if (gap < currentGap && (actor.type !== 'king' || threat === 0) && safeKing && score > progressScore) {
           progressMove = { type: 'move', unitId: actor.id, x: move.x, y: move.y };
           progressScore = score;
         }
-        // A quiet retreat solely to move again is worse than waiting.
         if (score > moveScore) {
           bestMove = { type: 'move', unitId: actor.id, x: move.x, y: move.y };
           moveScore = score;
@@ -311,7 +431,7 @@ const Engine = (() => {
     state.floor++;
     return startBattle(state);
   }
-  return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance });
+  return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance, combatInfo, passivesFor, predictAttack });
 })();
 
-globalThis.Sekasoko = { MASTER, ARMY_RULES, Engine };
+globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine };

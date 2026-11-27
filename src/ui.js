@@ -59,7 +59,7 @@ function refreshPresentation() {
   // Engine.act has already committed. Reconcile only presentation, never actions or AI.
   if(presentationContext)presentationContext.skipVisual=true;
   for(const animation of activeAnimations)animation.cancel();
-  pieceLayer.querySelectorAll('.floating-damage').forEach(el=>el.remove());
+  pieceLayer.querySelectorAll('.floating-damage,.passive-cue').forEach(el=>el.remove());
   paintProjection();paintUnits();paintInspector();paintHighlights();
 }
 window.addEventListener('resize',refreshPresentation);
@@ -156,12 +156,19 @@ function paintUnits() {
 }
 function paintInspector() {
   const u=selected(), ally=u?.side==='player';
-  $('selectedMark').textContent=u?(ally?'味方':'敵'):'未選択';
+  const info=u?Engine.combatInfo(state,u.id):null;
+  const oldDetail=$('inspectorBody').querySelector('.status-copy');
+  const detailScroll=u&&oldDetail?.dataset.detailId===u.id?oldDetail.scrollTop:0;
+  $('selectedMark').textContent=u?`${ally?'味方':'敵'} · ${info.passives.map(p=>p.name).join('／')||'能力'} ↕`:'未選択';
   $('inspectorBody').classList.toggle('unselected',!u);
   $('inspectorBody').setAttribute('aria-hidden',u?'false':'true');
   const m=u?MASTER[u.type]:null;
   const stat=(label,value,wide=false)=>`<div class="stat ${wide?'wide':''}">${label}<b>${value}</b></div>`;
-  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${u.hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?u.hp/u.maxHp*100:0}%"></i></div>${stat('ATK',m?m.atk:'—')}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div>`;
+  const guard=info?.guardId?find(info.guardId):null;
+  const passiveText=info?.passives.length?info.passives.map(p=>`<div class="passive-description"><b>${p.name}</b><p>${p.description}</p></div>`).join(''):'<p>パッシブなし</p>';
+  const attackText=info?`<span class="effective-atk">${info.atk}</span><small class="atk-breakdown">基礎 ${info.baseAtk} ＋ ${info.bonusAtk}</small>`:'—';
+  $('inspectorBody').innerHTML=`<div class="portrait ${u?'':'empty'}" aria-hidden="true">${m?m.icon:'♟'}</div><div class="status-copy" data-detail-id="${u?.id||''}" tabindex="${u?'0':'-1'}" role="region" aria-label="能力とパッシブ。スクロールで詳細を確認"><div class="identity"><h2 class="unit-title ${u?'':'status-empty'}">${m?m.name:'手駒を選択'}</h2><div class="side-tag ${u?.side||''}">${u?(ally?'YOUR COMPANION':'DEPTHS ENEMY'):'PIECE CHRONICLES'}</div></div><div class="stats">${stat('HP',u?`${u.hp} <small>/ ${u.maxHp}</small>`:'— <small>/ —</small>',true)}<div class="health-line"><i style="width:${u?u.hp/u.maxHp*100:0}%"></i></div>${stat('ATK',attackText)}${stat('移動',m?m.move:'—')}${stat('射程',m?m.range:'—')}${stat('コスト',m?m.cost:'—')}</div><div class="protection-info" id="protectionInfo">${guard?`守護の石壁：ゴーレムが肩代わり <span>HP ${guard.hp}／${guard.maxHp}</span>`:'守護の石壁：保護なし'}</div><div class="passive-info" id="passiveInfo">${info?.knightIds.length?`<p class="inspiration-info">鼓舞：隣接する騎士 ${info.knightIds.length}体で強化中</p>`:""}${passiveText}</div></div>`;
+  $('inspectorBody').querySelector('.status-copy').scrollTop=detailScroll;
   const canAttack=ally&&!busy&&state.phase==='player'&&Engine.targets(state,u.id).length>0;
   $('skillActions').classList.toggle('inactive',!ally);
   $('skillActions').setAttribute('aria-hidden',ally?'false':'true');
@@ -232,6 +239,16 @@ async function animateEvents(events, context) {
       continue;
     }
     if(!canAnimate(context))continue;
+    if(e.type==='guard') {
+      const guardian=unitElements.get(e.unitId),point=context.positions.get(e.unitId);
+      if(!guardian||!point)continue;
+      board.dataset.animation='guard';
+      const cue=showPassiveCue('守護の石壁',point);
+      cue.dataset.sourceId=e.unitId;cue.dataset.effect='guard';
+      try {
+        await playVisual(guardian.querySelector('.token'),[{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 8px #cce5c0)'},{filter:'brightness(1)'}],{duration:reducedMotion?1:context.guardDuration},context);
+      } finally {cue.remove();}
+    }
     if(e.type==='move') {
       const el=unitElements.get(e.unitId);if(!el)continue;
       board.dataset.animation='move';
@@ -242,37 +259,55 @@ async function animateEvents(events, context) {
     if(e.type==='attack') {
       const attacker=unitElements.get(e.unitId),target=unitElements.get(e.targetId);
       if(!attacker||!target)continue;
-      board.dataset.animation='attack';
+      board.dataset.animation=e.followUp?'support':'attack';
       const actorPoint=context.positions.get(e.unitId),targetPoint=context.positions.get(e.targetId);
       if(!actorPoint||!targetPoint)continue;
-      const a=Display.toDisplay(actorPoint,portraitView),t=Display.toDisplay(targetPoint,portraitView);
+      const aimPoint=context.positions.get(e.originalTargetId)||targetPoint;
+      const a=Display.toDisplay(actorPoint,portraitView),t=Display.toDisplay(aimPoint,portraitView);
       const {cols,rows}=Display.dimensions(portraitView),rect=board.getBoundingClientRect();
       const dx=(t.col-a.col)/cols*rect.width,dy=(t.row-a.row)/rows*rect.height,dist=Math.hypot(dx,dy)||1;
-      const complete=await playVisual(attacker.querySelector('.token'),[{transform:'translate(0,0)'},{transform:`translate(${dx/dist*15}px,${dy/dist*15}px) scale(1.06)`},{transform:'translate(0,0)'}],{duration:reducedMotion?1:220,easing:'ease-out'},context);
+      const cue=e.followUp?showPassiveCue('支援射撃',actorPoint):null;
+      if(cue){cue.dataset.sourceId=e.unitId;cue.dataset.effect='support';}
+      let complete;
+      try {
+        complete=await playVisual(attacker.querySelector('.token'),[{transform:'translate(0,0)'},{transform:`translate(${dx/dist*15}px,${dy/dist*15}px) scale(1.06)`},{transform:'translate(0,0)'}],{duration:reducedMotion?1:e.followUp?context.supportDuration:220,easing:'ease-out'},context);
+      } finally {cue?.remove();}
       if(!complete||!target.isConnected)continue;
       const damage=document.createElement('span');damage.className='floating-damage';damage.textContent=`−${e.damage}`;
+      damage.dataset.recipientId=e.targetId;damage.dataset.originalTargetId=e.originalTargetId||e.targetId;
       Object.assign(damage.style,displayPosition(targetPoint,.5,.35));pieceLayer.appendChild(damage);
-      const remaining=find(e.targetId);target.querySelector('.hp').textContent=remaining?remaining.hp:0;
-      target.querySelector('.hp-track i').style.width=`${remaining?remaining.hp/remaining.maxHp*100:0}%`;
-      await playVisual(target.querySelector('.token'),[{transform:'translateX(0)',filter:'brightness(2)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:reducedMotion?1:220},context);
+      const hp=e.hpAfter??find(e.targetId)?.hp??0;
+      target.querySelector('.hp').textContent=hp;
+      target.querySelector('.hp-track i').style.width=`${hp/context.maxHp.get(e.targetId)*100}%`;
+      await playVisual(target.querySelector('.token'),[{transform:'translateX(0)',filter:'brightness(2)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)',filter:'brightness(1)'}],{duration:reducedMotion?1:e.followUp?context.supportDuration*.75:220},context);
       setTimeout(()=>damage.remove(),700);
     }
     if(e.type==='death') {
       const el=unitElements.get(e.unitId),point=context.positions.get(e.unitId);
       if(el&&point) {
         board.dataset.animation='death';placeUnit(el,point);
-        await playVisual(el,[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:230,fill:'forwards'},context);
+        const complete=await playVisual(el,[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.7) translateY(-10px)'}],{duration:reducedMotion?1:context.deathDuration,fill:'forwards'},context);
+        if(complete){el.remove();unitElements.delete(e.unitId);}
       }
     }
   }
 }
 
+function showPassiveCue(text,point) {
+  const cue=document.createElement('span');cue.className='passive-cue';cue.textContent=text;
+  Object.assign(cue.style,displayPosition(point,.5,.25));pieceLayer.appendChild(cue);return cue;
+}
+
 async function doAction(action) {
   if(busy||!['player','enemy'].includes(state.phase))return;
   const token=generation;
-  const context={generation:token,revision:projectionRevision,skipVisual:false,positions:new Map(state.units.map(u=>[u.id,{x:u.x,y:u.y}]))};
+  const context={generation:token,revision:projectionRevision,skipVisual:false,positions:new Map(state.units.map(u=>[u.id,{x:u.x,y:u.y}])),maxHp:new Map(state.units.map(u=>[u.id,u.maxHp]))};
   const result=Engine.act(state,action);
   if(!result.ok){toast(result.error);return;}
+  // Bound added presentation time as more passives fire; combat still resolves in the engine once.
+  context.supportDuration=Math.max(28,Math.min(95,450/Math.max(1,result.events.filter(e=>e.type==='attack'&&e.followUp).length)));
+  context.guardDuration=Math.max(25,Math.min(90,220/Math.max(1,result.events.filter(e=>e.type==='guard').length)));
+  context.deathDuration=Math.max(45,Math.min(230,460/Math.max(1,result.events.filter(e=>e.type==='death').length)));
   presentationContext=context;attackMode=false;busy=true;render(true);
   try {await animateEvents(result.events,context);} catch(error) {console.error(error);}
   finally {if(presentationContext===context)presentationContext=null;delete board.dataset.animation;}
@@ -332,7 +367,7 @@ function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.005 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.006 クリア。':'味方の王のHPが0になった。今回の獲得候補は失われた。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · ${state.roster.length}体の手駒と出会った。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">新しい軍団で、最初から →</button></div><p style="font-size:10px;margin-top:15px">再挑戦すると軍団・階層は初期状態に戻るよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
@@ -342,7 +377,8 @@ function resetRun() {
   closeModal();render();toast('新しい探索が始まった。1Fから、もう一度！');
 }
 function showRules() {
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.005</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  const passiveRules=Object.keys(MASTER).flatMap(type=>Engine.passivesFor(type).map(p=>`${MASTER[type].name}「${p.name}」：${p.description}`)).join("<br>");
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.006</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>撃破した敵だけが獲得候補になり、勝利すると100%仲間に。王と生き残った敵は獲得できず、敗北すると候補を失うよ。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。集めた手駒は次の階層から出撃できる。10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>セーブ・音は未実装。ページを閉じる／再読み込みすると最初から。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータス内をスクロールして、強化や保護も確認しよう。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);

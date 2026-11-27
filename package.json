@@ -1,17 +1,18 @@
 {
   "name": "sekasoko-piece",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
-  "description": "セカソコ！～手駒編～ VER.005 12-versus-12 board battle prototype",
+  "description": "セカソコ！～手駒編～ VER.006 passive skills and army cooperation prototype",
   "scripts": {
     "build": "python3 scripts/build.py",
     "check": "python3 scripts/build.py --check",
     "test:engine": "node tests/test_engine.cjs",
     "test:ui": "node tests/test_ui.cjs",
-    "test": "npm run check && npm run test:engine && npm run test:ui && npm run test:responsive",
+    "test": "npm run check && npm run test:engine && npm run test:oracle && npm run test:ui && npm run test:responsive",
     "dev": "python3 -m http.server 3000 --bind 0.0.0.0",
     "test:responsive": "node tests/test_responsive.cjs",
-    "observe:army": "node scripts/observe_army.cjs"
+    "observe:army": "node scripts/observe_army.cjs",
+    "test:oracle": "node scripts/verify_passives.cjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"
