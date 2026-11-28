@@ -41,6 +41,7 @@ const enginePath = process.argv[2] || path.join(__dirname, '..', 'src', 'engine.
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(enginePath, 'utf8'), context);
 const E = context.Sekasoko.Engine;
+const armyCollection = require('../tests/army_fixture.cjs');
 
 let seed = 7008;
 const rnd = () => ((seed = Math.imul(seed, 1664525) + 1013904223 >>> 0) / 4294967296);
@@ -48,7 +49,7 @@ const pick = a => a[Math.floor(rnd() * a.length)];
 let actions = 0, captures = 0, deployments = 0, ends = 0, returns = 0;
 
 for (let game = 0; game < 80; game++) {
-  const s = E.createRun();
+  const s = E.createRun(armyCollection());
   const initial = new Map(s.units.map(p => [p.id, {
     originSide: p.originSide, rosterId: p.rosterId, type: p.type
   }]));

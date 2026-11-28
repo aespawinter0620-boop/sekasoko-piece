@@ -7,8 +7,11 @@ const assert=require('node:assert/strict');
 const artifacts=path.join(__dirname,'..','artifacts','responsive');
 fs.mkdirSync(artifacts,{recursive:true});
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
-const qaHTML=html.replace('let state = Engine.createRun(), selectedId','let state = (globalThis.__qaState = Engine.createRun()), selectedId')
-  .replace('state=Engine.createRun();','state=(globalThis.__qaState=Engine.createRun());');
+const armyCollection=require('./army_fixture.cjs');
+const qaHTML=html.replace('let state = initialState(), selectedId',`let state = (globalThis.__qaState = Engine.createRun(${JSON.stringify(armyCollection())})), selectedId`)
+  .replace('state=Engine.createRun(collection,true);','state=(globalThis.__qaState=Engine.createRun(collection,true));')
+  // Existing synthetic fixtures replace ownership; isolate them from persistent storage.
+  .replace('function saveState() {',"function saveState() { collection={king:{id:state.kingId,type:'king'},roster:state.roster.map(p=>({...p})),formation:state.formation.slice(),nextId:state.nextId}; return;");
 assert.notEqual(qaHTML,html,'The test-only state capture must match the UI entry point.');
 // Captured before VER.004 from the verified VER.003 HTML; keeps CI comparison independent of ignored artifacts.
 const BASELINE003={"390x844":{"width":339.984375,"height":218.546875},"375x667":{"width":324.984375,"height":208.90625},"320x568":{"width":280,"height":180},"844x390":{"width":437.109375,"height":280.984375},"667x375":{"width":390,"height":250.703125},"812x375":{"width":413.765625,"height":265.984375},"844x330":{"width":365.546875,"height":234.984375},"1440x1000":{"width":1043,"height":670.5}};
@@ -376,13 +379,13 @@ const viewports=[PORTRAIT,{width:375,height:667},{width:320,height:568},LANDSCAP
        const k=__qaState.units.find(u=>u.type==='king'&&u.side==='player');k.x=4;k.y=2;k.hp=1;
      });
      await page.locator('#waitBtn').click();await page.waitForSelector('#retryBtn');assert.equal((await snapshot()).phase,'defeat');
-     await rotateModal('#retryBtn');await page.locator('#retryBtn').click();await ready();assert.equal((await snapshot()).floor,1);
+     await rotateModal('#retryBtn');await page.locator('#retryBtn').click();await page.locator('#nextFloorBtn').click();await ready();assert.equal((await snapshot()).floor,1);
    });
    await check('10F clear exposes all11 rewards, survives both orientations and retries to a fresh24-unit army',async()=>{
      await load(PORTRAIT,false);const anchor=await page.evaluate(()=>{const s=__qaState,types=['dragon','mage','hamster','golem','knight','archer','slime','goblin','orc'];s.floor=10;const captured=s.units.filter(u=>u.side==='enemy'&&u.type!=='king');s.units=s.units.filter(u=>u.side==='player'||u.type==='king');captured.forEach((u,i)=>{u.type=types[i%types.length];u.maxHp=Sekasoko.MASTER[u.type].hp;u.side='player';u.currentSide='player';u.location='hand';u.x=null;u.y=null;u.hp=0;});s.hands.player=captured;s.candidates=Sekasoko.Engine.rewardPreview(s).map(p=>p.type);const a=s.units.find(u=>u.type==='archer'&&u.side==='player');a.x=3;a.y=2;s.units.find(u=>u.type==='king'&&u.side==='enemy').hp=1;return a.id;});
      await page.locator(`[data-unit-id="${anchor}"]`).click();const king=(await snapshot()).units.find(u=>u.side==='enemy'&&u.type==='king');await page.locator(`[data-unit-id="${king.id}"]`).click();await page.waitForSelector('#retryBtn');assert.equal((await snapshot()).phase,'clear');assert.equal((await snapshot()).lastRewards.length,11);assert.equal(await page.locator('.rewards .loot-chip').count(),11);
      for(const viewport of [{width:320,height:568},LANDSCAPE,{width:844,height:330}]){await resize(viewport);for(const chip of await page.locator('.rewards .loot-chip').all()){await chip.scrollIntoViewIfNeeded();const r=await chip.boundingBox();assert.ok(r.y>=0&&r.y+r.height<=viewport.height+1);}await assertCTA('#retryBtn');}
-     await page.screenshot({path:path.join(artifacts,'ver005-clear11-rewards.png')});await page.locator('#retryBtn').click();await ready();const reset=await snapshot();assert.equal(reset.floor,1);assert.equal(reset.roster.length,11);assert.equal(reset.units.length,24);
+     await page.screenshot({path:path.join(artifacts,'ver005-clear11-rewards.png')});await page.locator('#retryBtn').click();await page.locator('#nextFloorBtn').click();await ready();const reset=await snapshot();assert.equal(reset.floor,1);assert.equal(reset.roster.length,22);assert.equal(reset.units.length,24);
    });
    await check('Chromium safe-area override keeps controls, board, HP and hit targets clear of side notches and home indicator',async()=>{
      await load(LANDSCAPE,false);await select();const before=await snapshot();assert.equal(before.units.length,24);

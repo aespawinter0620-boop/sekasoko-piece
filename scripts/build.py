@@ -9,7 +9,7 @@ OUTPUT = ROOT / "index.html"
 
 def render():
     html = (SOURCE / "shell.html").read_text(encoding="utf-8")
-    for marker, filename in (("ENGINE_SOURCE", "engine.js"), ("UI_SOURCE", "ui.js")):
+    for marker, filename in (("ENGINE_SOURCE", "engine.js"), ("STORAGE_SOURCE", "storage.js"), ("UI_SOURCE", "ui.js")):
         token = f"<!-- {marker} -->"
         if html.count(token) != 1:
             raise ValueError(f"Expected exactly one {token} in src/shell.html")

@@ -16,11 +16,7 @@ const MASTER = Object.freeze({
 const ARMY_RULES = Object.freeze({
   maxHandPieces: 11,
   costLimit: 35,
-  startingTypes: Object.freeze([
-    'knight', 'knight', 'knight', 'knight',
-    'archer', 'archer', 'archer', 'archer',
-    'slime', 'slime', 'slime'
-  ]),
+  startingTypes: Object.freeze(['knight', 'archer']),
   firstFloorEnemyTypes: Object.freeze([
     'slime', 'slime', 'slime', 'slime', 'slime', 'slime', 'slime',
     'goblin', 'goblin', 'goblin', 'goblin'
@@ -112,7 +108,7 @@ const Engine = (() => {
     state.battleFinalized = false;
     state.lastRewardDetails = [];
     state.lastReturns = [];
-    state.units = [unit(state, 'king', 'player', 0, 2)];
+    state.units = [unit(state, 'king', 'player', 0, 2, state.kingId || null)];
     state.formation.forEach((id, index) => {
       const piece = state.roster.find(item => item.id === id);
       const {x,y} = ARMY_RULES.playerSlots[index];
@@ -133,16 +129,40 @@ const Engine = (() => {
     return { ok: true, events: [{ type: 'start', floor: state.floor }] };
   }
 
-  function createRun() {
+  function createCollection() {
+    const ids = { nextId: 1 };
+    const king = rosterPiece(ids, 'king');
+    const roster = ARMY_RULES.startingTypes.map(type => rosterPiece(ids, type));
+    return { king, roster, formation: roster.map(piece => piece.id), nextId: ids.nextId };
+  }
+
+  function createRun(collection = createCollection(), preparation = false) {
     const state = {
       floor: 1, turn: 1, totalActions: 0, phase: 'player', units: [],
       roster: [], formation: [], candidates: [], lastRewards: [], log: [],
-      history: {}, nextId: 1
+      history: {}, nextId: collection.nextId, kingId: collection.king.id,
+      hands: { player: [], enemy: [] }, battleFinalized: false,
+      lastRewardDetails: [], lastReturns: []
     };
-    state.roster = ARMY_RULES.startingTypes.map(type => rosterPiece(state, type));
-    state.formation = state.roster.map(piece => piece.id);
-    startBattle(state);
+    state.roster = collection.roster.map(piece => ({ ...piece }));
+    state.formation = collection.formation.slice();
+    if (preparation) state.phase = 'preparation';
+    else startBattle(state);
     return state;
+  }
+
+  function restoreRun(snapshot) {
+    const state = JSON.parse(JSON.stringify(snapshot));
+    for (const piece of allBattleUnits(state)) Object.defineProperties(piece, {
+      originSide: { value: piece.originSide, enumerable: true, writable: false, configurable: false },
+      rosterId: { value: piece.rosterId, enumerable: true, writable: false, configurable: false }
+    });
+    return state;
+  }
+
+  function begin(state) {
+    if (state.phase !== 'preparation') return { ok: false, error: '探索前の編成画面から出撃してね。', events: [] };
+    return startBattle(state);
   }
 
   function moves(state, unitId) {
@@ -554,7 +574,7 @@ const Engine = (() => {
   }
 
   function setFormation(state, ids) {
-    if (state.phase !== 'victory') return { ok: false, error: '階層クリア後に編成できるよ。' };
+    if (!['victory', 'preparation'].includes(state.phase)) return { ok: false, error: '探索前か階層クリア後に編成できるよ。' };
     const error = formationError(state, ids);
     if (error) return { ok: false, error };
     state.formation = ids.slice();
@@ -568,7 +588,7 @@ const Engine = (() => {
     state.floor++;
     return startBattle(state);
   }
-  return Object.freeze({ createRun, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance, combatInfo, passivesFor, predictAttack, deploymentSquares, rewardPreview });
+  return Object.freeze({ createCollection, createRun, restoreRun, begin, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance, combatInfo, passivesFor, predictAttack, deploymentSquares, rewardPreview });
 })();
 
 globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine };

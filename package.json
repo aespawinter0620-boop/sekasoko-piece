@@ -1,8 +1,8 @@
 {
   "name": "sekasoko-piece",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "private": true,
-  "description": "セカソコ！～手駒編～ VER.009 golden frame and marble board skin",
+  "description": "セカソコ！～手駒編～ VER.010 permanent collection and local autosave",
   "scripts": {
     "build": "python3 scripts/build.py",
     "check": "python3 scripts/build.py --check",

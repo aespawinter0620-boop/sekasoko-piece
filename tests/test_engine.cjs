@@ -7,7 +7,9 @@ const crypto = require('node:crypto');
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'engine.js'), 'utf8');
 const context = vm.createContext({console, Math, setTimeout, clearTimeout});
 vm.runInContext(source, context);
-const {MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine: E} = context.Sekasoko;
+const {MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine: Core} = context.Sekasoko;
+const armyCollection = require('./army_fixture.cjs');
+const E = Object.freeze({...Core, createRun: () => Core.createRun(armyCollection())});
 const tests = [];
 function test(name, fn) { tests.push([name, fn]); }
 function unit(id, type, side, x, y, hp = MASTER[type].hp, meta = {}) {
@@ -66,7 +68,10 @@ test('All ten master characters match the supplied provisional values', () => {
   }
 });
 
-test('New run deploys the exact 24-piece armies and initial cost 23', () => {
+test('New ownership is king, knight and archer; the full-army fixture still deploys 24 pieces at cost 23', () => {
+  const fresh = Core.createRun(), collection = Core.createCollection();
+  assert.equal(collection.king.type,'king'); assert.deepEqual(json(fresh.roster.map(p=>p.type)),['knight','archer']);
+  assert.equal(fresh.units.filter(p=>p.side==='player').length,3);
   const s = E.createRun();
   assert.equal(s.floor,1); assert.equal(s.turn,1); assert.equal(s.phase,'player');
   const starting = ['knight','knight','knight','knight','archer','archer','archer','archer','slime','slime','slime'];
@@ -403,7 +408,7 @@ test('Floors 2–10 use exactly eleven unchanged weighted draws with fixed encou
   for(let floor=2;floor<=10;floor++) {
     let calls=0; const math=Object.create(Math); math.random=()=>rolls[calls++];
     const c=vm.createContext({Math:math}); vm.runInContext(source,c);
-    const e=c.Sekasoko.Engine, s=e.createRun(); assert.equal(calls,0);
+    const e=c.Sekasoko.Engine, s=e.createRun(armyCollection()); assert.equal(calls,0);
     s.floor=floor; assert.equal(e.startBattle(s).ok,true); assert.equal(calls,11);
     const army=s.units.filter(u=>u.side==='enemy'); assert.equal(army.length,12);
     assert.deepEqual(json(army.slice(1).map(u=>u.type)),expected[floor]);
@@ -422,7 +427,7 @@ test('Unchanged master, army, movement, targeting, and encounter rules retain th
   };
   const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
   for(const [name,fingerprint] of Object.entries(expected)) assert.equal(hash(E[name].toString()),fingerprint,name);
-  for(const [name,fingerprint] of Object.entries({MASTER:'6292c5c24edb8bdfa09e180277b74fc21ceb0e3df521895937dde47e27d19500',ARMY_RULES:'e9be58ab164271c0216a977542deb0e10983643358e2972b04aad0d8286224b7'})) {
+  for(const [name,fingerprint] of Object.entries({MASTER:'6292c5c24edb8bdfa09e180277b74fc21ceb0e3df521895937dde47e27d19500',ARMY_RULES:'fb73280dfb0d945c7f388350f4302d8a17c378765b86622bbb344eb2f8174bc0'})) {
     const start=source.indexOf(`const ${name} =`),end=source.indexOf('\n\n',start);
     assert.equal(hash(source.slice(start,end)),fingerprint,name);
   }
@@ -685,7 +690,7 @@ test('Prediction stays exact and non-destructive throughout seeded passive fight
     const math=Object.create(Math); let seed=0x600000+trial;
     math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/0x100000000);
     const c=vm.createContext({Math:math}); vm.runInContext(source,c); const engine=c.Sekasoko.Engine;
-    const s=engine.createRun(); s.floor=trial%2?5:10; engine.startBattle(s);
+    const s=engine.createRun(armyCollection()); s.floor=trial%2?5:10; engine.startBattle(s);
     for(let step=0;step<100&&['player','enemy'].includes(s.phase);step++) {
       const actors=s.units.filter(u=>u.side===s.phase);
       const options=actors.flatMap(u=>engine.targets(s,u.id).map(t=>[u.id,t.id]));

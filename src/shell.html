@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png?v=0.0.8">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png?v=0.0.8">
 <link rel="shortcut icon" href="assets/icons/favicon.ico?v=0.0.8">
-<title>セカソコ！～手駒編～ | VER.009</title>
+<title>セカソコ！～手駒編～ | VER.010</title>
 <style>
 :root{color-scheme:dark;--ink:#eee9dc;--muted:#9daeb2;--gold:#d6bb80;--line:#b5a87d38;--blue:#9bdaee;--red:#edb1a1;--panel:#17262c;--edge:14px;--frame:10px;--depth:8px;--gap:12px;--arena-label:21px;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans CJK JP","Hiragino Kaku Gothic ProN",sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:#101b20;color:var(--ink)}button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid var(--line);border-radius:6px;background:#24363c;padding:9px 14px}button:hover:not(:disabled){filter:brightness(1.12)}button:focus-visible{outline:2px solid #e6f9ff;outline-offset:2px}button:disabled{cursor:default;opacity:.5}[hidden]{display:none!important}.primary{background:linear-gradient(#e0c994,#bfa064);color:#1d292b;border-color:#ead3a4;font-weight:700;box-shadow:0 3px 12px #0004}.quiet{background:transparent;color:var(--muted)}h1,h2,h3,p{margin:0}.serif,h1,h2,h3{font-family:"Noto Serif CJK JP","Hiragino Mincho ProN","Yu Mincho",serif}.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--gold)}small{font-size:10px}
@@ -87,7 +87,7 @@
 <main class="battle-layout">
  <section class="command-region" id="commandRegion">
  <header class="topbar" id="hud">
- <div class="topline"><span class="version">VER.009</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
+ <div class="topline"><span class="version">VER.010</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
  <div class="journey"><div class="floor-line"><div class="floor-badge"><span id="floorNum">1</span><small> F</small></div><div class="floor-name"><b id="floorTitle">はじまりの回廊</b></div></div><div class="phase"><span class="turn" id="turnNum">TURN 01</span><span class="phase-pill" id="phaseBadge" aria-live="polite">あなたの手番</span></div></div>
 </header>
  <aside class="panel inspector" id="inspector"><div class="panel-head"><span>PIECE STATUS</span><div class="status-tools"><span id="selectedMark">未選択</span><button id="detailsBtn" class="details-btn" disabled>詳細</button></div></div><div class="inspector-body" id="inspectorBody"></div><div class="skill-actions inactive" id="skillActions"><button class="skill-btn" id="normalAttackBtn" aria-pressed="false">通常攻撃<small>射程内の敵を選択</small></button><button class="skill-btn" id="uniqueSkillBtn" disabled>固有技<small>未実装</small></button><button class="skill-btn" id="ultimateSkillBtn" disabled>必殺技<small>未実装</small></button></div><div class="capture-trays" id="captureTrays" aria-label="戦闘中の捕獲手駒"><div class="hand-row player"><span class="hand-label">味方 <b id="playerHandCount">0</b></span><div class="hand-list" id="playerHandList" role="group" aria-label="味方の捕獲手駒"></div></div><div class="hand-row enemy"><span class="hand-label">敵 <b id="enemyHandCount">0</b></span><div class="hand-list" id="enemyHandList" role="group" aria-label="敵の捕獲手駒・確認のみ"></div></div></div><div class="action-footer"><div class="action-note" id="boardHint" aria-live="polite"></div><button class="cancel-attack" id="cancelAttackBtn" hidden>攻撃をやめる</button></div></aside>
@@ -95,12 +95,13 @@
  <section class="arena" aria-label="戦闘盤面"><div class="board-slot"><div class="board-wrap"><i class="corner nw" aria-hidden="true"></i><i class="corner ne" aria-hidden="true"></i><i class="corner sw" aria-hidden="true"></i><i class="corner se" aria-hidden="true"></i><div class="board board-surface" id="board"><div class="board-skin" aria-hidden="true"></div><div class="cells" id="cells"></div><div class="piece-layer" id="pieceLayer"></div></div></div></div></section>
 </main>
 </div>
-<div class="flyout" id="menuPanel" hidden role="group" aria-label="メニュー"><div class="panel-head"><span>MENU</span><button class="close-flyout" id="closeMenuBtn" aria-label="メニューを閉じる">×</button></div><div class="menu-options"><button id="helpBtn">遊び方・手駒一覧</button><button id="restartBtn">最初からやり直す</button></div></div>
+<div class="flyout" id="menuPanel" hidden role="group" aria-label="メニュー"><div class="panel-head"><span>MENU</span><button class="close-flyout" id="closeMenuBtn" aria-label="メニューを閉じる">×</button></div><div class="menu-options"><button id="helpBtn">遊び方・手駒一覧</button><button id="restartBtn">新しい探索へ（所有駒は保持）</button><button id="clearSaveBtn">全セーブデータ初期化</button></div></div>
 <section class="flyout" id="logPanel" hidden aria-label="戦闘ログ"><div class="panel-head"><span>BATTLE LOG</span><button class="close-flyout" id="closeLogBtn" aria-label="ログを閉じる">×</button></div><ol class="log-list" id="logList" aria-live="polite"></ol></section>
 <div id="toast" class="toast" role="status"></div>
 <div id="overlay" class="overlay" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"></section></div>
 <noscript>このゲームを遊ぶにはJavaScriptを有効にしてね。</noscript>
 <!-- ENGINE_SOURCE -->
+<!-- STORAGE_SOURCE -->
 <!-- UI_SOURCE -->
 </body>
 </html>
