@@ -412,7 +412,7 @@ VER.011の手動確認は起動・簡単な育成操作のみ。既存必須CI�
 
 ビルド整合性チェック合格。ChromiumでVER.011の起動、1回の階層報酬の結晶100を王へMAX投入し、Lv.2・EXP50・結晶残高0への成長と保存、未捕捉例外0を確認。
 
-既存必須CI・Pages公開：確認中。
+既存必須CIは全項目合格し、Pages配信成功。公開URLでも起動と王への結晶100のMAX投入、Lv.2／EXP50・残高0への成長と保存、未捕捉例外0を確認。公開CI：https://github.com/aespawinter0620-boop/sekasoko-piece/actions/runs/46101448002
 
 iPhone実機Safari／WebKit・詳細な育成とゲーム性・長期保存は未検証。詳細な実機確認は創造主が行う。
 
