@@ -47,7 +47,7 @@ function assertInventory(s, expectedIds) {
   }
   for(const p of s.units) {
     assert.equal(p.location,'board'); assert.equal(p.currentSide,p.side);
-    assert.ok(p.x>=0&&p.x<7&&p.y>=0&&p.y<5&&p.hp>0&&p.hp<=MASTER[p.type].hp);
+    assert.ok(p.x>=0&&p.x<7&&p.y>=0&&p.y<5&&p.hp>0&&p.hp<=p.maxHp);
   }
 }
 function action(s, a) { const r = E.act(s, a); assert.equal(r.ok, true, r.error); return r; }
@@ -256,7 +256,7 @@ test('Next floor restores killed allies, heals survivors, and deploys the select
   assert.equal(s.floor,2); assert.equal(s.phase,'player'); assert.equal(s.turn,1);
   assert.deepEqual(json(s.formation),initialFormation);
   assert.equal(s.units.filter(u=>u.side==='player').length,12);
-  assert.ok(s.units.every(u=>u.hp===MASTER[u.type].hp));
+  assert.ok(s.units.every(u=>u.hp===u.maxHp));
   assert.equal(s.candidates.length,0);
   assert.equal(s.units.filter(u=>u.side==='enemy').length,12);
 });
@@ -312,7 +312,7 @@ test('All ten floors can be cleared consecutively with valid twelve-unit deploym
     assert.equal(s.floor,floor);
     assert.equal(s.units.filter(u=>u.side==='enemy').length,12);
     assert.equal(s.units.filter(u=>u.side==='player').length,12);
-    assert.ok(s.units.every(u=>u.hp===MASTER[u.type].hp));
+    assert.ok(s.units.every(u=>u.hp===u.maxHp));
     const actor=s.units.find(u=>u.side==='player'&&u.type==='archer');
     const king=s.units.find(u=>u.side==='enemy'&&u.type==='king');
     // Isolate progression from protection: deployment was checked above; guard behavior has dedicated fixtures.

@@ -52,6 +52,37 @@ const PASSIVE_LOADOUTS = Object.freeze({
   golem: Object.freeze(['stoneWall'])
 });
 
+/* Individual growth is separate from the unchanged base character master. */
+const Growth = (() => {
+  const coefficients = Object.freeze({ F:1, E:2, D:3, C:4, B:5, A:7, S:10 });
+  const ranks = Object.freeze({ king:'F', slime:'F', hamster:'F', goblin:'E', knight:'D', archer:'D', orc:'D', mage:'C', golem:'B', dragon:'S' });
+  const level = piece => Number.isSafeInteger(piece.level) && piece.level > 0 ? piece.level : 1;
+  const rank = piece => ranks[typeof piece === 'string' ? piece : piece.type];
+  const required = piece => level(piece) * 100 * coefficients[rank(piece)];
+  const stats = piece => ({ hp:MASTER[piece.type].hp * level(piece), atk:MASTER[piece.type].atk * level(piece) });
+  function ensure(piece) {
+    piece.level = level(piece);
+    if (!Number.isSafeInteger(piece.exp) || piece.exp < 0) piece.exp = 0;
+    return piece;
+  }
+  function addEXP(piece, amount) {
+    ensure(piece);
+    const from = piece.level, oldMax = stats(piece).hp, total = piece.exp + amount;
+    const cost = 100 * coefficients[rank(piece)], base = 2 * from - 1;
+    let count = Math.max(0, Math.floor((Math.sqrt(base * base + 8 * total / cost) - base) / 2));
+    const consumed = n => cost * n * (2 * from + n - 1) / 2;
+    while (count > 0 && consumed(count) > total) count--;
+    while (consumed(count + 1) <= total) count++;
+    piece.level += count; piece.exp = total - consumed(count);
+    if (Object.hasOwn(piece,'maxHp')) {
+      piece.maxHp = stats(piece).hp;
+      if (piece.hp > 0) piece.hp += piece.maxHp - oldMax;
+    }
+    return { from, to:piece.level };
+  }
+  return Object.freeze({ coefficients, ranks, level, rank, required, stats, ensure, addEXP });
+})();
+
 /* Pure battle rules. UI and animation are deliberately outside this module. */
 const Engine = (() => {
   const WIDTH = 7, HEIGHT = 5;
@@ -64,9 +95,10 @@ const Engine = (() => {
     state.log.length = Math.min(state.log.length, 60);
   };
   const nextID = (state, prefix) => prefix + state.nextId++;
-  const rosterPiece = (state, type) => ({ id: nextID(state, 'r'), type });
-  const unit = (state, type, side, x, y, rosterId = null) => {
-    const piece = { id: nextID(state, 'u'), type, side, currentSide: side, location: 'board', x, y, hp: MASTER[type].hp, maxHp: MASTER[type].hp };
+  const rosterPiece = (state, type, progress = {}) => Growth.ensure({ id: nextID(state, 'r'), type, level:progress.level, exp:progress.exp });
+  const unit = (state, type, side, x, y, rosterId = null, progress = {}) => {
+    const piece = Growth.ensure({ id: nextID(state, 'u'), type, side, currentSide: side, location: 'board', x, y, level:progress.level, exp:progress.exp });
+    piece.hp = piece.maxHp = Growth.stats(piece).hp;
     // Battle-start provenance never changes when this individual changes sides.
     Object.defineProperties(piece, {
       originSide: { value: side, enumerable: true },
@@ -108,17 +140,19 @@ const Engine = (() => {
     state.battleFinalized = false;
     state.lastRewardDetails = [];
     state.lastReturns = [];
-    state.units = [unit(state, 'king', 'player', 0, 2, state.kingId || null)];
+    state.defeatedForEXP = []; state.damageContributors = {}; state.lastCrystalReward = 0;
+    state.units = [unit(state, 'king', 'player', 0, 2, state.kingId || null, state.king || {})];
     state.formation.forEach((id, index) => {
       const piece = state.roster.find(item => item.id === id);
       const {x,y} = ARMY_RULES.playerSlots[index];
-      state.units.push(unit(state, piece.type, 'player', x, y, piece.id));
+      state.units.push(unit(state, piece.type, 'player', x, y, piece.id, piece));
     });
-    state.units.push(unit(state, 'king', 'enemy', 6, 2));
+    const enemyProgress = { level: Math.floor((state.floor - 1) / 3) + 1, exp: 0 };
+    state.units.push(unit(state, 'king', 'enemy', 6, 2, null, enemyProgress));
     const enemies = state.floor === 1 ? ARMY_RULES.firstFloorEnemyTypes : Array.from({ length: ARMY_RULES.maxHandPieces }, () => weightedEnemy(state.floor));
     enemies.forEach((type, index) => {
       const {x,y} = ARMY_RULES.enemySlots[index];
-      state.units.push(unit(state, type, 'enemy', x, y));
+      state.units.push(unit(state, type, 'enemy', x, y, null, enemyProgress));
     });
     state.phase = 'player';
     state.turn = 1;
@@ -133,7 +167,7 @@ const Engine = (() => {
     const ids = { nextId: 1 };
     const king = rosterPiece(ids, 'king');
     const roster = ARMY_RULES.startingTypes.map(type => rosterPiece(ids, type));
-    return { king, roster, formation: roster.map(piece => piece.id), nextId: ids.nextId };
+    return { king, roster, formation: roster.map(piece => piece.id), nextId: ids.nextId, crystals: 0 };
   }
 
   function createRun(collection = createCollection(), preparation = false) {
@@ -142,9 +176,10 @@ const Engine = (() => {
       roster: [], formation: [], candidates: [], lastRewards: [], log: [],
       history: {}, nextId: collection.nextId, kingId: collection.king.id,
       hands: { player: [], enemy: [] }, battleFinalized: false,
-      lastRewardDetails: [], lastReturns: []
+      lastRewardDetails: [], lastReturns: [], king: Growth.ensure({ ...collection.king }),
+      crystals: collection.crystals || 0, defeatedForEXP: [], damageContributors: {}, lastCrystalReward: 0
     };
-    state.roster = collection.roster.map(piece => ({ ...piece }));
+    state.roster = collection.roster.map(piece => Growth.ensure({ ...piece }));
     state.formation = collection.formation.slice();
     if (preparation) state.phase = 'preparation';
     else startBattle(state);
@@ -213,7 +248,7 @@ const Engine = (() => {
     if (!actor || actor.hp <= 0) return null;
     const knights = state.units.filter(piece => piece.hp > 0 && piece.side === actor.side
       && hasPassive(piece, 'inspiration') && distance(piece, actor) === 1).sort(byId);
-    const baseAtk = MASTER[actor.type].atk;
+    const baseAtk = Growth.stats(actor).atk;
     const atk = Math.floor(baseAtk * (1 + knights.length * PASSIVES.inspiration.bonusMultiplier));
     const guards = guardsFor(state, actor);
     return {
@@ -261,12 +296,16 @@ const Engine = (() => {
     state.lastRewardDetails = [];
     state.lastRewards = rewards.map(piece => piece.type);
     for (const captured of rewards) {
-      const owned = rosterPiece(state, captured.type);
+      const progress = allBattleUnits(state).find(piece => piece.id === captured.unitId);
+      const owned = rosterPiece(state, captured.type, progress);
       state.roster.push(owned);
       state.lastRewardDetails.push({ unitId: captured.unitId, type: captured.type, rosterId: owned.id });
     }
     state.candidates = [];
     if (won) {
+      state.lastCrystalReward = state.floor * 100;
+      state.crystals = (state.crystals || 0) + state.lastCrystalReward;
+      append(state, `経験の結晶 ${state.lastCrystalReward} EXPを獲得。`);
       append(state, state.phase === 'clear' ? `10F踏破！ 試作版クリア！ 手駒${rewards.length}体を正式獲得。`
         : `${state.floor}Fクリア！ 手駒${rewards.length}体を正式獲得。`);
       events.push({ type: state.phase, rewards: state.lastRewards.slice(),
@@ -275,6 +314,44 @@ const Engine = (() => {
       append(state, '味方の王が倒れた。今回の敵出自の手駒は正式獲得しない。');
       events.push({ type: 'defeat', rewards: [], acquired: [], returned: state.lastReturns.map(piece => ({ ...piece })) });
     }
+  }
+
+  function updateOwnedGrowth(state, piece) {
+    if (piece.originSide !== 'player') return;
+    const owned = piece.type === 'king' ? state.king : state.roster.find(p => p.id === piece.rosterId);
+    if (owned) { owned.level = Growth.level(piece); owned.exp = piece.exp || 0; }
+  }
+
+  function awardDefeatEXP(state, target, killer, events) {
+    state.defeatedForEXP ||= [];
+    if (state.defeatedForEXP.includes(target.id)) return;
+    state.defeatedForEXP.push(target.id);
+    const participants = new Set(state.damageContributors?.[target.id] || []);
+    participants.add(killer.id);
+    const base = Growth.level(target) * 50;
+    for (const piece of allBattleUnits(state).filter(p => p.side === killer.side && participants.has(p.id)).sort(byId)) {
+      const amount = piece.id === killer.id ? base : base / 2;
+      const change = Growth.addEXP(piece, amount);
+      updateOwnedGrowth(state, piece);
+      if (change.to > change.from) {
+        append(state, `${piece.side === 'player' ? '味方' : '敵'}の${MASTER[piece.type].name} Lv.${change.from} → Lv.${change.to}！`);
+        events.push({ type:'levelUp', unitId:piece.id, from:change.from, to:change.to });
+      }
+    }
+  }
+
+  function train(state, ownedId, amount) {
+    if (!['preparation','victory','defeat','clear'].includes(state.phase)) return { ok:false, error:'育成は探索外・階層間で行えるよ。' };
+    const piece = ownedId === state.kingId ? state.king : state.roster.find(p => p.id === ownedId);
+    if (!piece || !Number.isSafeInteger(amount) || amount <= 0 || amount > (state.crystals || 0)) return { ok:false, error:'結晶残高以内の整数を入力してね。' };
+    const change = Growth.addEXP(piece, amount);
+    state.crystals -= amount;
+    for (const current of allBattleUnits(state).filter(p => p.originSide === 'player' && p.rosterId === ownedId)) {
+      const oldMax = current.maxHp; current.level = piece.level; current.exp = piece.exp;
+      current.maxHp = Growth.stats(current).hp;
+      if (current.hp > 0) current.hp += current.maxHp - oldMax;
+    }
+    return { ok:true, ...change };
   }
 
   function defeated(state, target, events, captorSide) {
@@ -321,13 +398,16 @@ const Engine = (() => {
       append(state, `${MASTER[guard.type].name}が${MASTER[original.type].name}を守護。${damage}ダメージを肩代わり。`);
     }
     const hpBefore = target.hp;
+    state.damageContributors ||= {};
+    const participants = state.damageContributors[target.id] ||= [];
+    if (!participants.includes(actor.id)) participants.push(actor.id);
     target.hp = Math.max(0, target.hp - damage);
     events.push({
       type: 'attack', unitId: actor.id, targetId: target.id, originalTargetId: original.id,
       damage, followUp, hpBefore, hpAfter: target.hp
     });
     append(state, `${actor.side === 'player' ? '味方' : '敵'}の${MASTER[actor.type].name}${followUp ? 'の支援射撃' : ''} → ${MASTER[target.type].name}に${damage}ダメージ。`);
-    if (target.hp === 0) defeated(state, target, events, actor.side);
+    if (target.hp === 0) { awardDefeatEXP(state, target, actor, events); defeated(state, target, events, actor.side); }
   }
 
   function resolveAttack(state, actorId, targetId, events) {
@@ -556,7 +636,7 @@ const Engine = (() => {
         const risks = forecastThreats(candidate, 'player');
         const kingRisk = ownKing ? risks.get(ownKing.id) || 0 : 0;
         const pieceRisk = risks.get(piece.id) || 0;
-        let score = MASTER[piece.type].hp * 0.3 + MASTER[piece.type].atk * 3 + MASTER[piece.type].cost;
+        let score = Growth.stats(piece).hp * 0.3 + Growth.stats(piece).atk * 3 + MASTER[piece.type].cost;
         score += (futureOffense(candidate) - currentOffense) * 0.35;
         score += (currentKingRisk - kingRisk) * 200;
         score -= pieceRisk * 1.5;
@@ -588,7 +668,7 @@ const Engine = (() => {
     state.floor++;
     return startBattle(state);
   }
-  return Object.freeze({ createCollection, createRun, restoreRun, begin, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance, combatInfo, passivesFor, predictAttack, deploymentSquares, rewardPreview });
+  return Object.freeze({ createCollection, createRun, restoreRun, begin, startBattle, moves, targets, act, chooseAI, setFormation, advance, train, distance, combatInfo, passivesFor, predictAttack, deploymentSquares, rewardPreview });
 })();
 
-globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine };
+globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Growth, Engine };

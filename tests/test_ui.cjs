@@ -8,7 +8,7 @@ const armyCollection=require('./army_fixture.cjs');
 const qaHTML=html.replace('let state = initialState(), selectedId',`let state = (globalThis.__qaState = Engine.createRun(${JSON.stringify(armyCollection())})), selectedId`)
   .replace('state=Engine.createRun(collection,true);','state=(globalThis.__qaState=Engine.createRun(collection,true));')
   // Existing synthetic fixtures replace ownership; isolate them from persistent storage.
-  .replace('function saveState() {',"function saveState() { collection={king:{id:state.kingId,type:'king'},roster:state.roster.map(p=>({...p})),formation:state.formation.slice(),nextId:state.nextId}; return;");
+  .replace('function saveState() {',"function saveState() { collection={king:{...state.king,id:state.kingId,type:'king'},crystals:state.crystals||0,roster:state.roster.map(p=>({...p})),formation:state.formation.slice(),nextId:state.nextId}; return;");
 assert.notEqual(qaHTML,html);
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||(fs.existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),args:['--no-sandbox']});

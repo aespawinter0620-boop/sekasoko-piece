@@ -1,8 +1,8 @@
 {
   "name": "sekasoko-piece",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "private": true,
-  "description": "セカソコ！～手駒編～ VER.010 permanent collection and local autosave",
+  "description": "セカソコ！～手駒編～ VER.011 individual levels, battle EXP and experience crystals",
   "scripts": {
     "build": "python3 scripts/build.py",
     "check": "python3 scripts/build.py --check",

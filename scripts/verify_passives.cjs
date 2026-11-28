@@ -58,20 +58,40 @@ function reference(source, actorId, targetId) {
   s.hands = clone(source.hands || {player:[],enemy:[]});
   let ended = false;
   const get = id => s.units.find(p => p.id === id);
+  // Extend the existing oracle for immediate growth; keep its original boards and attack cases.
+  const rankCost = { king:100, slime:100, hamster:100, goblin:200, knight:300, archer:300, orc:300, mage:400, golem:500, dragon:1000 };
+  s.defeatedForEXP ||= []; s.damageContributors ||= {};
+  function award(target, killer) {
+    if (s.defeatedForEXP.includes(target.id)) return;
+    s.defeatedForEXP.push(target.id);
+    const ids = new Set(s.damageContributors[target.id] || []); ids.add(killer.id);
+    for (const p of [...s.units,...s.hands.player,...s.hands.enemy]) {
+      if (p.side !== killer.side || !ids.has(p.id)) continue;
+      const previous = p.level || 1; p.level = previous;
+      p.exp = (p.exp || 0) + (target.level || 1) * (p.id === killer.id ? 50 : 25);
+      while (p.exp >= p.level * rankCost[p.type]) { p.exp -= p.level * rankCost[p.type]; p.level++; }
+      const delta = MASTER[p.type].hp * (p.level - previous);
+      p.maxHp = MASTER[p.type].hp * p.level;
+      if (p.hp > 0) p.hp += delta;
+    }
+  }
   function strike(id, follow) {
     const attacker = get(id), original = get(targetId);
     if (ended || !attacker || !original) return;
     const boost = s.units.filter(p => p.hp > 0 && p.type === 'knight'
       && p.side === attacker.side && dist(p, attacker) === 1).length;
-    const damage = Math.floor(MASTER[attacker.type].atk * (1 + boost * .5));
+    const damage = Math.floor(MASTER[attacker.type].atk * (attacker.level || 1) * (1 + boost * .5));
     const guard = s.units.filter(p => p.hp > 0 && p.type === 'golem'
       && p.side === original.side && dist(p, original) === 1)
       .sort((a, b) => b.hp - a.hp || cmp(a, b))[0];
     const target = guard || original;
     const before = target.hp;
+    const contributors = s.damageContributors[target.id] ||= [];
+    if (!contributors.includes(attacker.id)) contributors.push(attacker.id);
     target.hp = Math.max(0, target.hp - damage);
     hits.push([id, target.id, targetId, damage, follow, before, target.hp]);
     if (!target.hp) {
+      award(target, attacker);
       deaths.push(target.id);
       s.units = s.units.filter(p => p.id !== target.id);
       if (target.type === 'king') ended = true;

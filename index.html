@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png?v=0.0.8">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png?v=0.0.8">
 <link rel="shortcut icon" href="assets/icons/favicon.ico?v=0.0.8">
-<title>セカソコ！～手駒編～ | VER.010</title>
+<title>セカソコ！～手駒編～ | VER.011</title>
 <style>
 :root{color-scheme:dark;--ink:#eee9dc;--muted:#9daeb2;--gold:#d6bb80;--line:#b5a87d38;--blue:#9bdaee;--red:#edb1a1;--panel:#17262c;--edge:14px;--frame:10px;--depth:8px;--gap:12px;--arena-label:21px;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans CJK JP","Hiragino Kaku Gothic ProN",sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:#101b20;color:var(--ink)}button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1px solid var(--line);border-radius:6px;background:#24363c;padding:9px 14px}button:hover:not(:disabled){filter:brightness(1.12)}button:focus-visible{outline:2px solid #e6f9ff;outline-offset:2px}button:disabled{cursor:default;opacity:.5}[hidden]{display:none!important}.primary{background:linear-gradient(#e0c994,#bfa064);color:#1d292b;border-color:#ead3a4;font-weight:700;box-shadow:0 3px 12px #0004}.quiet{background:transparent;color:var(--muted)}h1,h2,h3,p{margin:0}.serif,h1,h2,h3{font-family:"Noto Serif CJK JP","Hiragino Mincho ProN","Yu Mincho",serif}.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--gold)}small{font-size:10px}
@@ -78,6 +78,8 @@
 .panel,.panel.target-mode,.flyout,.modal,.toast{border-color:#c9a75e88}
 .panel,.flyout,.modal{box-shadow:inset 0 1px #f4dda51c,0 6px 18px #0003}
 .stats,.skill-actions,.capture-trays{border-top-color:#c9a75e30}
+/* Growth controls stay in dialogs; the accepted board footprint is unchanged. */
+.training-fields{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:18px 0}.training-fields label{display:flex;flex-direction:column;gap:7px;min-width:0;flex:1;font-size:12px}.training-fields label:first-child{flex-basis:100%}.training-fields input,.training-fields select{font:inherit;color:var(--ink);background:#17262c;border:1px solid var(--gold);border-radius:6px;min-height:38px;padding:8px;width:100%;min-width:0}.growth-detail,#trainingPreview{font-size:12px;color:var(--gold);line-height:1.7;margin:12px 0}
 </style>
 </head>
 <body>
@@ -87,7 +89,7 @@
 <main class="battle-layout">
  <section class="command-region" id="commandRegion">
  <header class="topbar" id="hud">
- <div class="topline"><span class="version">VER.010</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
+ <div class="topline"><span class="version">VER.011</span><div class="utility-actions"><button class="utility-btn" id="waitBtn">待機</button><button class="utility-btn" id="logBtn" aria-expanded="false" aria-controls="logPanel">ログ</button><button class="utility-btn" id="menuBtn" aria-expanded="false" aria-controls="menuPanel">メニュー</button></div></div>
  <div class="journey"><div class="floor-line"><div class="floor-badge"><span id="floorNum">1</span><small> F</small></div><div class="floor-name"><b id="floorTitle">はじまりの回廊</b></div></div><div class="phase"><span class="turn" id="turnNum">TURN 01</span><span class="phase-pill" id="phaseBadge" aria-live="polite">あなたの手番</span></div></div>
 </header>
  <aside class="panel inspector" id="inspector"><div class="panel-head"><span>PIECE STATUS</span><div class="status-tools"><span id="selectedMark">未選択</span><button id="detailsBtn" class="details-btn" disabled>詳細</button></div></div><div class="inspector-body" id="inspectorBody"></div><div class="skill-actions inactive" id="skillActions"><button class="skill-btn" id="normalAttackBtn" aria-pressed="false">通常攻撃<small>射程内の敵を選択</small></button><button class="skill-btn" id="uniqueSkillBtn" disabled>固有技<small>未実装</small></button><button class="skill-btn" id="ultimateSkillBtn" disabled>必殺技<small>未実装</small></button></div><div class="capture-trays" id="captureTrays" aria-label="戦闘中の捕獲手駒"><div class="hand-row player"><span class="hand-label">味方 <b id="playerHandCount">0</b></span><div class="hand-list" id="playerHandList" role="group" aria-label="味方の捕獲手駒"></div></div><div class="hand-row enemy"><span class="hand-label">敵 <b id="enemyHandCount">0</b></span><div class="hand-list" id="enemyHandList" role="group" aria-label="敵の捕獲手駒・確認のみ"></div></div></div><div class="action-footer"><div class="action-note" id="boardHint" aria-live="polite"></div><button class="cancel-attack" id="cancelAttackBtn" hidden>攻撃をやめる</button></div></aside>
@@ -155,6 +157,37 @@ const PASSIVE_LOADOUTS = Object.freeze({
   golem: Object.freeze(['stoneWall'])
 });
 
+/* Individual growth is separate from the unchanged base character master. */
+const Growth = (() => {
+  const coefficients = Object.freeze({ F:1, E:2, D:3, C:4, B:5, A:7, S:10 });
+  const ranks = Object.freeze({ king:'F', slime:'F', hamster:'F', goblin:'E', knight:'D', archer:'D', orc:'D', mage:'C', golem:'B', dragon:'S' });
+  const level = piece => Number.isSafeInteger(piece.level) && piece.level > 0 ? piece.level : 1;
+  const rank = piece => ranks[typeof piece === 'string' ? piece : piece.type];
+  const required = piece => level(piece) * 100 * coefficients[rank(piece)];
+  const stats = piece => ({ hp:MASTER[piece.type].hp * level(piece), atk:MASTER[piece.type].atk * level(piece) });
+  function ensure(piece) {
+    piece.level = level(piece);
+    if (!Number.isSafeInteger(piece.exp) || piece.exp < 0) piece.exp = 0;
+    return piece;
+  }
+  function addEXP(piece, amount) {
+    ensure(piece);
+    const from = piece.level, oldMax = stats(piece).hp, total = piece.exp + amount;
+    const cost = 100 * coefficients[rank(piece)], base = 2 * from - 1;
+    let count = Math.max(0, Math.floor((Math.sqrt(base * base + 8 * total / cost) - base) / 2));
+    const consumed = n => cost * n * (2 * from + n - 1) / 2;
+    while (count > 0 && consumed(count) > total) count--;
+    while (consumed(count + 1) <= total) count++;
+    piece.level += count; piece.exp = total - consumed(count);
+    if (Object.hasOwn(piece,'maxHp')) {
+      piece.maxHp = stats(piece).hp;
+      if (piece.hp > 0) piece.hp += piece.maxHp - oldMax;
+    }
+    return { from, to:piece.level };
+  }
+  return Object.freeze({ coefficients, ranks, level, rank, required, stats, ensure, addEXP });
+})();
+
 /* Pure battle rules. UI and animation are deliberately outside this module. */
 const Engine = (() => {
   const WIDTH = 7, HEIGHT = 5;
@@ -167,9 +200,10 @@ const Engine = (() => {
     state.log.length = Math.min(state.log.length, 60);
   };
   const nextID = (state, prefix) => prefix + state.nextId++;
-  const rosterPiece = (state, type) => ({ id: nextID(state, 'r'), type });
-  const unit = (state, type, side, x, y, rosterId = null) => {
-    const piece = { id: nextID(state, 'u'), type, side, currentSide: side, location: 'board', x, y, hp: MASTER[type].hp, maxHp: MASTER[type].hp };
+  const rosterPiece = (state, type, progress = {}) => Growth.ensure({ id: nextID(state, 'r'), type, level:progress.level, exp:progress.exp });
+  const unit = (state, type, side, x, y, rosterId = null, progress = {}) => {
+    const piece = Growth.ensure({ id: nextID(state, 'u'), type, side, currentSide: side, location: 'board', x, y, level:progress.level, exp:progress.exp });
+    piece.hp = piece.maxHp = Growth.stats(piece).hp;
     // Battle-start provenance never changes when this individual changes sides.
     Object.defineProperties(piece, {
       originSide: { value: side, enumerable: true },
@@ -211,17 +245,19 @@ const Engine = (() => {
     state.battleFinalized = false;
     state.lastRewardDetails = [];
     state.lastReturns = [];
-    state.units = [unit(state, 'king', 'player', 0, 2, state.kingId || null)];
+    state.defeatedForEXP = []; state.damageContributors = {}; state.lastCrystalReward = 0;
+    state.units = [unit(state, 'king', 'player', 0, 2, state.kingId || null, state.king || {})];
     state.formation.forEach((id, index) => {
       const piece = state.roster.find(item => item.id === id);
       const {x,y} = ARMY_RULES.playerSlots[index];
-      state.units.push(unit(state, piece.type, 'player', x, y, piece.id));
+      state.units.push(unit(state, piece.type, 'player', x, y, piece.id, piece));
     });
-    state.units.push(unit(state, 'king', 'enemy', 6, 2));
+    const enemyProgress = { level: Math.floor((state.floor - 1) / 3) + 1, exp: 0 };
+    state.units.push(unit(state, 'king', 'enemy', 6, 2, null, enemyProgress));
     const enemies = state.floor === 1 ? ARMY_RULES.firstFloorEnemyTypes : Array.from({ length: ARMY_RULES.maxHandPieces }, () => weightedEnemy(state.floor));
     enemies.forEach((type, index) => {
       const {x,y} = ARMY_RULES.enemySlots[index];
-      state.units.push(unit(state, type, 'enemy', x, y));
+      state.units.push(unit(state, type, 'enemy', x, y, null, enemyProgress));
     });
     state.phase = 'player';
     state.turn = 1;
@@ -236,7 +272,7 @@ const Engine = (() => {
     const ids = { nextId: 1 };
     const king = rosterPiece(ids, 'king');
     const roster = ARMY_RULES.startingTypes.map(type => rosterPiece(ids, type));
-    return { king, roster, formation: roster.map(piece => piece.id), nextId: ids.nextId };
+    return { king, roster, formation: roster.map(piece => piece.id), nextId: ids.nextId, crystals: 0 };
   }
 
   function createRun(collection = createCollection(), preparation = false) {
@@ -245,9 +281,10 @@ const Engine = (() => {
       roster: [], formation: [], candidates: [], lastRewards: [], log: [],
       history: {}, nextId: collection.nextId, kingId: collection.king.id,
       hands: { player: [], enemy: [] }, battleFinalized: false,
-      lastRewardDetails: [], lastReturns: []
+      lastRewardDetails: [], lastReturns: [], king: Growth.ensure({ ...collection.king }),
+      crystals: collection.crystals || 0, defeatedForEXP: [], damageContributors: {}, lastCrystalReward: 0
     };
-    state.roster = collection.roster.map(piece => ({ ...piece }));
+    state.roster = collection.roster.map(piece => Growth.ensure({ ...piece }));
     state.formation = collection.formation.slice();
     if (preparation) state.phase = 'preparation';
     else startBattle(state);
@@ -316,7 +353,7 @@ const Engine = (() => {
     if (!actor || actor.hp <= 0) return null;
     const knights = state.units.filter(piece => piece.hp > 0 && piece.side === actor.side
       && hasPassive(piece, 'inspiration') && distance(piece, actor) === 1).sort(byId);
-    const baseAtk = MASTER[actor.type].atk;
+    const baseAtk = Growth.stats(actor).atk;
     const atk = Math.floor(baseAtk * (1 + knights.length * PASSIVES.inspiration.bonusMultiplier));
     const guards = guardsFor(state, actor);
     return {
@@ -364,12 +401,16 @@ const Engine = (() => {
     state.lastRewardDetails = [];
     state.lastRewards = rewards.map(piece => piece.type);
     for (const captured of rewards) {
-      const owned = rosterPiece(state, captured.type);
+      const progress = allBattleUnits(state).find(piece => piece.id === captured.unitId);
+      const owned = rosterPiece(state, captured.type, progress);
       state.roster.push(owned);
       state.lastRewardDetails.push({ unitId: captured.unitId, type: captured.type, rosterId: owned.id });
     }
     state.candidates = [];
     if (won) {
+      state.lastCrystalReward = state.floor * 100;
+      state.crystals = (state.crystals || 0) + state.lastCrystalReward;
+      append(state, `経験の結晶 ${state.lastCrystalReward} EXPを獲得。`);
       append(state, state.phase === 'clear' ? `10F踏破！ 試作版クリア！ 手駒${rewards.length}体を正式獲得。`
         : `${state.floor}Fクリア！ 手駒${rewards.length}体を正式獲得。`);
       events.push({ type: state.phase, rewards: state.lastRewards.slice(),
@@ -378,6 +419,44 @@ const Engine = (() => {
       append(state, '味方の王が倒れた。今回の敵出自の手駒は正式獲得しない。');
       events.push({ type: 'defeat', rewards: [], acquired: [], returned: state.lastReturns.map(piece => ({ ...piece })) });
     }
+  }
+
+  function updateOwnedGrowth(state, piece) {
+    if (piece.originSide !== 'player') return;
+    const owned = piece.type === 'king' ? state.king : state.roster.find(p => p.id === piece.rosterId);
+    if (owned) { owned.level = Growth.level(piece); owned.exp = piece.exp || 0; }
+  }
+
+  function awardDefeatEXP(state, target, killer, events) {
+    state.defeatedForEXP ||= [];
+    if (state.defeatedForEXP.includes(target.id)) return;
+    state.defeatedForEXP.push(target.id);
+    const participants = new Set(state.damageContributors?.[target.id] || []);
+    participants.add(killer.id);
+    const base = Growth.level(target) * 50;
+    for (const piece of allBattleUnits(state).filter(p => p.side === killer.side && participants.has(p.id)).sort(byId)) {
+      const amount = piece.id === killer.id ? base : base / 2;
+      const change = Growth.addEXP(piece, amount);
+      updateOwnedGrowth(state, piece);
+      if (change.to > change.from) {
+        append(state, `${piece.side === 'player' ? '味方' : '敵'}の${MASTER[piece.type].name} Lv.${change.from} → Lv.${change.to}！`);
+        events.push({ type:'levelUp', unitId:piece.id, from:change.from, to:change.to });
+      }
+    }
+  }
+
+  function train(state, ownedId, amount) {
+    if (!['preparation','victory','defeat','clear'].includes(state.phase)) return { ok:false, error:'育成は探索外・階層間で行えるよ。' };
+    const piece = ownedId === state.kingId ? state.king : state.roster.find(p => p.id === ownedId);
+    if (!piece || !Number.isSafeInteger(amount) || amount <= 0 || amount > (state.crystals || 0)) return { ok:false, error:'結晶残高以内の整数を入力してね。' };
+    const change = Growth.addEXP(piece, amount);
+    state.crystals -= amount;
+    for (const current of allBattleUnits(state).filter(p => p.originSide === 'player' && p.rosterId === ownedId)) {
+      const oldMax = current.maxHp; current.level = piece.level; current.exp = piece.exp;
+      current.maxHp = Growth.stats(current).hp;
+      if (current.hp > 0) current.hp += current.maxHp - oldMax;
+    }
+    return { ok:true, ...change };
   }
 
   function defeated(state, target, events, captorSide) {
@@ -424,13 +503,16 @@ const Engine = (() => {
       append(state, `${MASTER[guard.type].name}が${MASTER[original.type].name}を守護。${damage}ダメージを肩代わり。`);
     }
     const hpBefore = target.hp;
+    state.damageContributors ||= {};
+    const participants = state.damageContributors[target.id] ||= [];
+    if (!participants.includes(actor.id)) participants.push(actor.id);
     target.hp = Math.max(0, target.hp - damage);
     events.push({
       type: 'attack', unitId: actor.id, targetId: target.id, originalTargetId: original.id,
       damage, followUp, hpBefore, hpAfter: target.hp
     });
     append(state, `${actor.side === 'player' ? '味方' : '敵'}の${MASTER[actor.type].name}${followUp ? 'の支援射撃' : ''} → ${MASTER[target.type].name}に${damage}ダメージ。`);
-    if (target.hp === 0) defeated(state, target, events, actor.side);
+    if (target.hp === 0) { awardDefeatEXP(state, target, actor, events); defeated(state, target, events, actor.side); }
   }
 
   function resolveAttack(state, actorId, targetId, events) {
@@ -659,7 +741,7 @@ const Engine = (() => {
         const risks = forecastThreats(candidate, 'player');
         const kingRisk = ownKing ? risks.get(ownKing.id) || 0 : 0;
         const pieceRisk = risks.get(piece.id) || 0;
-        let score = MASTER[piece.type].hp * 0.3 + MASTER[piece.type].atk * 3 + MASTER[piece.type].cost;
+        let score = Growth.stats(piece).hp * 0.3 + Growth.stats(piece).atk * 3 + MASTER[piece.type].cost;
         score += (futureOffense(candidate) - currentOffense) * 0.35;
         score += (currentKingRisk - kingRisk) * 200;
         score -= pieceRisk * 1.5;
@@ -691,17 +773,17 @@ const Engine = (() => {
     state.floor++;
     return startBattle(state);
   }
-  return Object.freeze({ createCollection, createRun, restoreRun, begin, startBattle, moves, targets, act, chooseAI, setFormation, advance, distance, combatInfo, passivesFor, predictAttack, deploymentSquares, rewardPreview });
+  return Object.freeze({ createCollection, createRun, restoreRun, begin, startBattle, moves, targets, act, chooseAI, setFormation, advance, train, distance, combatInfo, passivesFor, predictAttack, deploymentSquares, rewardPreview });
 })();
 
-globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Engine };
+globalThis.Sekasoko = { MASTER, ARMY_RULES, PASSIVES, PASSIVE_LOADOUTS, Growth, Engine };
 
 </script>
 <script>
 /* One atomic localStorage record keeps permanent ownership and exploration in sync. */
 (() => {
 'use strict';
-const { MASTER, ARMY_RULES, Engine } = globalThis.Sekasoko;
+const { MASTER, ARMY_RULES, Growth, Engine } = globalThis.Sekasoko;
 const KEY = 'sekasoko-piece.save.v1';
 let readError = false;
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -712,6 +794,16 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const data = JSON.parse(raw), c = data.collection, s = data.exploration;
+    // Additive VER.010 migration: keep ownership, IDs and progress; fill only new fields.
+    if (c && s && Array.isArray(c.roster) && Array.isArray(s.roster)) {
+      Growth.ensure(c.king); c.roster.forEach(Growth.ensure); s.roster.forEach(Growth.ensure);
+      s.king = Growth.ensure(s.king || { ...c.king });
+      c.crystals ??= 0; s.crystals ??= c.crystals;
+      s.defeatedForEXP ||= []; s.damageContributors ||= {}; s.lastCrystalReward ??= 0;
+      for (const piece of [...s.units, ...s.hands.player, ...s.hands.enemy]) {
+        Growth.ensure(piece); piece.maxHp = Growth.stats(piece).hp;
+      }
+    }
     if (data.schema !== 1 || c?.king?.type !== 'king' || !c.king.id || !Array.isArray(c.roster)
       || !Array.isArray(c.formation) || !s || !Array.isArray(s.units) || !Array.isArray(s.roster)
       || !Array.isArray(s.hands?.player) || !Array.isArray(s.hands?.enemy)
@@ -740,8 +832,10 @@ function load() {
 function sync(collection, state) {
   // Ownership never disappears when an individual changes side in battle.
   const owned = new Map(collection.roster.map(p => [p.id, { ...p }]));
-  for (const piece of state.roster) if (!owned.has(piece.id)) owned.set(piece.id, { ...piece });
+  for (const piece of state.roster) owned.set(piece.id, { ...Growth.ensure(piece) });
   collection.roster = [...owned.values()];
+  collection.king = { ...Growth.ensure(state.king || collection.king) };
+  collection.crystals = state.crystals || 0;
   state.roster = collection.roster.map(p => ({ ...p }));
   collection.formation = state.formation.slice();
   collection.nextId = Math.max(collection.nextId, state.nextId);
@@ -770,7 +864,7 @@ globalThis.Sekasoko.Storage = Object.freeze({ load, save, sync, clear });
 /* UI adapter: no rule data here. All actions go through the pure Engine. */
 (() => {
 'use strict';
-const { MASTER, ARMY_RULES, Engine, Storage } = globalThis.Sekasoko;
+const { MASTER, ARMY_RULES, Engine, Storage, Growth } = globalThis.Sekasoko;
 const $ = id => document.getElementById(id);
 const board = $('board'), pieceLayer = $('pieceLayer'), cells = $('cells'), overlay = $('overlay'), modal = $('modal');
 const names = ['はじまりの回廊','苔むした階段','忘れられた門','薄明の広間','石像の庭','残響の迷宮','深緑の祭壇','竜影の回廊','世界の継ぎ目','底へ続く扉'];
@@ -979,7 +1073,7 @@ function paintUnits() {
 }
 function paintInspector() {
   const u=selected(), ally=u?.side==='player',inHand=!!selectedHand();
-  const info=u?(inHand?{baseAtk:MASTER[u.type].atk,atk:MASTER[u.type].atk,bonusAtk:0,knightIds:[],guardId:null,guardIds:[],passives:Engine.passivesFor(u.type)}:Engine.combatInfo(state,u.id)):null;
+  const info=u?(inHand?{baseAtk:Growth.stats(u).atk,atk:Growth.stats(u).atk,bonusAtk:0,knightIds:[],guardId:null,guardIds:[],passives:Engine.passivesFor(u.type)}:Engine.combatInfo(state,u.id)):null;
   const oldDetail=$('inspectorBody').querySelector('.status-copy');
   const detailScroll=u&&oldDetail?.dataset.detailId===u.id?oldDetail.scrollTop:0;
   $('selectedMark').textContent=u?`${ally?'味方':'敵'}${inHand?'手駒':''} · ${info.passives.map(p=>p.name).join('／')||'能力'}`:'未選択';
@@ -1187,11 +1281,11 @@ function showFormation() {
   const preparing=state.phase==='preparation';
   const cost=state.formation.reduce((sum,id)=>sum+MASTER[state.roster.find(p=>p.id===id).type].cost,0);
   const rosterCards=state.roster.map((p,i)=>{
-    const m=MASTER[p.type],chosen=state.formation.includes(p.id);
+    const m={...MASTER[p.type],...Growth.stats(p)},chosen=state.formation.includes(p.id);
     const isNew=i>=state.roster.length-state.lastRewards.length;
-    return `<button class="roster-card ${chosen?'chosen':''}" data-roster="${p.id}" aria-pressed="${chosen}" aria-label="${m.name} 個体${i+1} コスト${m.cost} ${chosen?'出撃中':'控え'}"><span class="roster-icon" aria-hidden="true">${m.icon}</span><span class="cost">COST ${m.cost}</span><span class="check">${chosen?'✓ 出撃':isNew?'NEW':''}</span><span class="name">${m.name} <small style="color:var(--muted)">#${i+1}</small></span><span class="mini-stat">HP ${m.hp}　ATK ${m.atk}<br>移動 ${m.move}　射程 ${m.range}</span></button>`;
+    return `<button class="roster-card ${chosen?'chosen':''}" data-roster="${p.id}" aria-pressed="${chosen}" aria-label="${m.name} 個体${i+1} コスト${m.cost} ${chosen?'出撃中':'控え'}"><span class="roster-icon" aria-hidden="true">${m.icon}</span><span class="cost">COST ${m.cost}</span><span class="check">${chosen?'✓ 出撃':isNew?'NEW':''}</span><span class="name">${m.name} <small style="color:var(--muted)">#${i+1}</small></span><span class="mini-stat">Lv.${Growth.level(p)} · ${Growth.rank(p)} · EXP ${p.exp||0}/${Growth.required(p)}<br>HP ${m.hp}　ATK ${m.atk}<br>移動 ${m.move}　射程 ${m.range}</span></button>`;
   }).join('');
-  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">${preparing?'EXPEDITION PREPARATION':`FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY`}</div><h2 id="modalTitle">${preparing?'所有駒を選んで、世界の底へ。':'手駒を迎えて、さらに深く。'}</h2><p>${preparing?`所有 ${state.roster.length+1}体（王を含む） · ${saveWarningShown?'自動保存できていないため、ブラウザーの保存設定を確認してね。':'この端末に自動保存。'}<br>王は必須。手駒を選んで探索を始めよう。`:`正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。<br>味方は全員復帰・HP全回復。次の仲間を選ぼう。`}</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${preparing?'':rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王 <small>#${state.kingId}</small></span><span class="mini-stat">HP 12　ATK 2<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button class="primary" id="nextFloorBtn">${preparing?'探索開始 →':`${state.floor+1}Fへ進む →`}</button></div>`);
+  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">${preparing?'EXPEDITION PREPARATION':`FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY`}</div><h2 id="modalTitle">${preparing?'所有駒を選んで、世界の底へ。':'手駒を迎えて、さらに深く。'}</h2><p>${preparing?`所有 ${state.roster.length+1}体（王を含む） · ${saveWarningShown?'自動保存できていないため、ブラウザーの保存設定を確認してね。':'この端末に自動保存。'}<br>王は必須。手駒を選んで探索を始めよう。`:`正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。<br>味方は全員復帰・HP全回復。次の仲間を選ぼう。`}</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${preparing?'':rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>結晶 <b id="crystalBalance">${state.crystals||0}</b> EXP · 次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王 <small>#${state.kingId}</small></span><span class="mini-stat">Lv.${Growth.level(state.king)} · F · EXP ${state.king.exp||0}/${Growth.required(state.king)}<br>HP ${Growth.stats(state.king).hp}　ATK ${Growth.stats(state.king).atk}<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button id="trainBtn">経験の結晶で育成</button><button class="primary" id="nextFloorBtn">${preparing?'探索開始 →':`${state.floor+1}Fへ進む →`}</button></div>`);
   modal.querySelectorAll('[data-roster]').forEach(button=>button.addEventListener('click',()=>{
     const id=button.dataset.roster;
     const ids=state.formation.includes(id)?state.formation.filter(p=>p!==id):[...state.formation,id];
@@ -1199,17 +1293,44 @@ function showFormation() {
     if(!result.ok){toast(result.error);return;}
     saveState();showFormation();modal.querySelector(`[data-roster="${id}"]`)?.focus();
   }));
+  $('trainBtn').addEventListener('click',showTraining);
   $('nextFloorBtn').addEventListener('click',()=>{
     const result=preparing?Engine.begin(state):Engine.advance(state);if(!result.ok){toast(result.error);return;}
     saveState();
     attackMode=false;selectedId=null;selectedHandId=null;closeModal();render();toast(`${state.floor}Fへ。軍団のHPが全回復した！`);
   });
 }
+function showTraining() {
+  if(!['preparation','victory','defeat','clear'].includes(state.phase))return;
+  const owned=[state.king,...state.roster],balance=state.crystals||0;
+  openModal('training',`<div class="eyebrow">GROW YOUR COMPANION</div><h2 id="modalTitle">経験の結晶で育てる</h2><p>結晶残高 <b id="trainingBalance">${balance}</b> EXP · 1結晶＝1EXP</p><div class="training-fields"><label>育てる個体<select id="trainingPieceSelect" aria-label="育てる個体"></select></label><label>投入EXP<input id="trainingAmount" aria-label="投入EXP" type="number" inputmode="numeric" min="1" step="1" max="${balance}" value="${Math.min(100,balance)}"></label><button id="trainingMaxBtn" ${balance?'':'disabled'}>MAX</button></div><p id="trainingPreview" aria-live="polite"></p><div class="modal-actions"><button id="backToFormationBtn">編成へ戻る</button><button id="confirmTrainingBtn" class="primary" ${balance?'':'disabled'}>結晶を投入</button></div>`);
+  for(const piece of owned) {
+    const option=document.createElement('option');option.value=piece.id;
+    option.textContent=`${MASTER[piece.type].icon} ${MASTER[piece.type].name} #${piece.id} · Lv.${Growth.level(piece)} · ${Growth.rank(piece)} · EXP ${piece.exp||0}/${Growth.required(piece)}`;
+    $('trainingPieceSelect').appendChild(option);
+  }
+  function preview() {
+    const piece=owned.find(p=>p.id===$('trainingPieceSelect').value),amount=Number($('trainingAmount').value);
+    const valid=Number.isSafeInteger(amount)&&amount>0&&amount<=balance;
+    $('confirmTrainingBtn').disabled=!valid;
+    const future={...piece};if(valid)Growth.addEXP(future,amount);
+    $('trainingPreview').textContent=`Lv.${Growth.level(piece)} → Lv.${Growth.level(future)} · HP ${Growth.stats(piece).hp} → ${Growth.stats(future).hp} · ATK ${Growth.stats(piece).atk} → ${Growth.stats(future).atk} · 成長後EXP ${future.exp||0}/${Growth.required(future)}`;
+  }
+  $('trainingPieceSelect').addEventListener('change',preview);$('trainingAmount').addEventListener('input',preview);
+  $('trainingMaxBtn').addEventListener('click',()=>{$('trainingAmount').value=balance;preview();});
+  $('backToFormationBtn').addEventListener('click',showFormation);
+  $('confirmTrainingBtn').addEventListener('click',()=>{
+    const result=Engine.train(state,$('trainingPieceSelect').value,Number($('trainingAmount').value));
+    if(!result.ok){toast(result.error);return;}
+    const id=$('trainingPieceSelect').value;saveState();showTraining();$('trainingPieceSelect').value=id;preview();
+  });
+  preview();
+}
 function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.010 クリア。':'味方の王のHPが0になった。新しい所有手駒の獲得はなし。元の所有手駒は返還された。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · 所有駒${state.roster.length+1}体（王を含む）。<br>正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">所有駒で編成し直す →</button></div><p style="font-size:10px;margin-top:15px">正式に獲得した所有駒を保持して、1Fから新しく探索するよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.011 クリア。':'味方の王のHPが0になった。新しい所有手駒の獲得はなし。元の所有手駒は返還された。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · 所有駒${state.roster.length+1}体（王を含む）。<br>正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">所有駒で編成し直す →</button></div><p style="font-size:10px;margin-top:15px">正式に獲得した所有駒を保持して、1Fから新しく探索するよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
@@ -1221,18 +1342,18 @@ function resetRun() {
 function showPieceDetails() {
   const u=selected();if(!u||busy||state.phase!=='player'||!overlay.hidden)return;
   const m=MASTER[u.type],inHand=!!selectedHand();
-  const info=inHand?{atk:m.atk,bonusAtk:0,knightIds:[],guardId:null}:Engine.combatInfo(state,u.id);
+  const info=inHand?{atk:Growth.stats(u).atk,bonusAtk:0,knightIds:[],guardId:null}:Engine.combatInfo(state,u.id);
   const guard=info.guardId?find(info.guardId):null;
   const passives=Engine.passivesFor(u.type).map(p=>`<div class="passive-description"><b>${p.name}</b><p>${p.description}</p></div>`).join('')||'<p>パッシブなし</p>';
   const canAttack=!inHand&&u.side==='player'&&Engine.targets(state,u.id).length>0;
-  openModal('piece',`<div class="piece-detail"><div class="modal-title"><div><div class="eyebrow">${u.side==='player'?'味方':'敵'}${inHand?'の捕獲手駒':'の盤上駒'}</div><h2 id="modalTitle">${m.icon} ${m.name}</h2><p class="detail-id">個体 #${u.id} · ${u.originSide==='player'?'元の所有手駒':'今回の敵出自'}</p></div><button class="icon-btn" id="closeDetailsBtn" aria-label="駒の詳細を閉じる">×</button></div><div class="detail-stats"><span>${inHand?'出撃時 ':''}HP<b>${inHand?u.maxHp:u.hp} / ${u.maxHp}</b></span><span>ATK<b class="detail-effective-atk">${info.atk}</b><small>基礎 ${m.atk} ＋ ${info.bonusAtk}</small></span><span>移動<b>${m.move}</b></span><span>射程<b>${m.range}</b></span><span>編成コスト<b>${m.cost}</b></span></div><div class="protection-info">${inHand?'再出撃は満HP・コストなし。手駒内のパッシブは発動せず、出撃直後から有効。':guard?`守護の石壁：${MASTER[guard.type].name} #${guard.id} が肩代わり（HP ${guard.hp} / ${guard.maxHp}）`:'守護の石壁：保護なし'}</div><div class="passive-info">${info.knightIds.length?`<p>鼓舞：隣接する騎士${info.knightIds.length}体で強化中。</p>`:''}${passives}</div>${inHand?'<p>味方の手駒を選んで、光る空きマスへ出撃。敵陣も選べる。戦闘中の人数上限はない。</p>':''}<div class="modal-actions"><button id="detailAttackBtn" ${canAttack?'':'disabled'}>通常攻撃</button><button disabled>固有技（未実装）</button><button disabled>必殺技（未実装）</button><button class="primary" id="backFromDetailsBtn">盤面へ戻る</button></div></div>`);
+  openModal('piece',`<div class="piece-detail"><div class="modal-title"><div><div class="eyebrow">${u.side==='player'?'味方':'敵'}${inHand?'の捕獲手駒':'の盤上駒'}</div><h2 id="modalTitle">${m.icon} ${m.name}</h2><p class="detail-id">個体 #${u.id} · ${u.originSide==='player'?'元の所有手駒':'今回の敵出自'}</p></div><button class="icon-btn" id="closeDetailsBtn" aria-label="駒の詳細を閉じる">×</button></div><p class="growth-detail">Lv.${Growth.level(u)} · ランク ${Growth.rank(u)} · EXP ${u.exp||0} / ${Growth.required(u)}</p><div class="detail-stats"><span>${inHand?'出撃時 ':''}HP<b>${inHand?u.maxHp:u.hp} / ${u.maxHp}</b></span><span>ATK<b class="detail-effective-atk">${info.atk}</b><small>Lv ATK ${Growth.stats(u).atk} ＋ ${info.bonusAtk}</small></span><span>移動<b>${m.move}</b></span><span>射程<b>${m.range}</b></span><span>編成コスト<b>${m.cost}</b></span></div><div class="protection-info">${inHand?'再出撃は満HP・コストなし。手駒内のパッシブは発動せず、出撃直後から有効。':guard?`守護の石壁：${MASTER[guard.type].name} #${guard.id} が肩代わり（HP ${guard.hp} / ${guard.maxHp}）`:'守護の石壁：保護なし'}</div><div class="passive-info">${info.knightIds.length?`<p>鼓舞：隣接する騎士${info.knightIds.length}体で強化中。</p>`:''}${passives}</div>${inHand?'<p>味方の手駒を選んで、光る空きマスへ出撃。敵陣も選べる。戦闘中の人数上限はない。</p>':''}<div class="modal-actions"><button id="detailAttackBtn" ${canAttack?'':'disabled'}>通常攻撃</button><button disabled>固有技（未実装）</button><button disabled>必殺技（未実装）</button><button class="primary" id="backFromDetailsBtn">盤面へ戻る</button></div></div>`);
   $('closeDetailsBtn').addEventListener('click',closeModal);$('backFromDetailsBtn').addEventListener('click',closeModal);
   $('detailAttackBtn').addEventListener('click',()=>{closeModal();$('normalAttackBtn').click();});
 }
 $('detailsBtn').addEventListener('click',showPieceDetails);
 function showRules() {
   const passiveRules=Object.keys(MASTER).flatMap(type=>Engine.passivesFor(type).map(p=>`${MASTER[type].name}「${p.name}」：${p.description}`)).join("<br>");
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.010</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>王以外を撃破すると、その個体が戦闘中の捕獲手駒に。敵も捕獲・再出撃するよ。<br>勝利時に「今回の敵出自で、いま味方に所属する個体」だけを100%正式獲得。敵に奪い返された個体は獲得しない。元の所有手駒は勝敗を問わず返還される。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。捕獲手駒は同じ戦闘中にも再出撃できる。階層をまたぐ正式な編成とは別で、10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>この端末に自動保存し、再起動すると続きから。所有駒は新しい探索にも引き継ぐ。音は未実装。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータスの「詳細」から、強化や保護も確認しよう。</p></section><section><h3>06 · 捕獲して、再出撃。</h3><p>味方の捕獲手駒を選び、光る空きマスへ。全35マスが対象で、敵陣や敵王の隣もOK。<br>再出撃だけで1行動、満HP・コストなし。戦闘中は空きマスがある限り出撃できる。出撃直後からパッシブが有効で、手駒内では発動しない。再捕獲でも同じ個体のまま。横スクロールで全個体を選べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.011</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>王以外を撃破すると、その個体が戦闘中の捕獲手駒に。敵も捕獲・再出撃するよ。<br>勝利時に「今回の敵出自で、いま味方に所属する個体」だけを100%正式獲得。敵に奪い返された個体は獲得しない。元の所有手駒は勝敗を問わず返還される。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。捕獲手駒は同じ戦闘中にも再出撃できる。階層をまたぐ正式な編成とは別で、10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>この端末に自動保存し、再起動すると続きから。所有駒は新しい探索にも引き継ぐ。探索外・階層間は経験の結晶で王も育成できる。LvでHP・ATKが上がり、撃破EXPは同じ戦闘・個体の初回のみ。音は未実装。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータスの「詳細」から、強化や保護も確認しよう。</p></section><section><h3>06 · 捕獲して、再出撃。</h3><p>味方の捕獲手駒を選び、光る空きマスへ。全35マスが対象で、敵陣や敵王の隣もOK。<br>再出撃だけで1行動、満HP・コストなし。戦闘中は空きマスがある限り出撃できる。出撃直後からパッシブが有効で、手駒内では発動しない。再捕獲でも同じ個体のまま。横スクロールで全個体を選べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);

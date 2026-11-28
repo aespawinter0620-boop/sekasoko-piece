@@ -1,7 +1,7 @@
 /* One atomic localStorage record keeps permanent ownership and exploration in sync. */
 (() => {
 'use strict';
-const { MASTER, ARMY_RULES, Engine } = globalThis.Sekasoko;
+const { MASTER, ARMY_RULES, Growth, Engine } = globalThis.Sekasoko;
 const KEY = 'sekasoko-piece.save.v1';
 let readError = false;
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -12,6 +12,16 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const data = JSON.parse(raw), c = data.collection, s = data.exploration;
+    // Additive VER.010 migration: keep ownership, IDs and progress; fill only new fields.
+    if (c && s && Array.isArray(c.roster) && Array.isArray(s.roster)) {
+      Growth.ensure(c.king); c.roster.forEach(Growth.ensure); s.roster.forEach(Growth.ensure);
+      s.king = Growth.ensure(s.king || { ...c.king });
+      c.crystals ??= 0; s.crystals ??= c.crystals;
+      s.defeatedForEXP ||= []; s.damageContributors ||= {}; s.lastCrystalReward ??= 0;
+      for (const piece of [...s.units, ...s.hands.player, ...s.hands.enemy]) {
+        Growth.ensure(piece); piece.maxHp = Growth.stats(piece).hp;
+      }
+    }
     if (data.schema !== 1 || c?.king?.type !== 'king' || !c.king.id || !Array.isArray(c.roster)
       || !Array.isArray(c.formation) || !s || !Array.isArray(s.units) || !Array.isArray(s.roster)
       || !Array.isArray(s.hands?.player) || !Array.isArray(s.hands?.enemy)
@@ -40,8 +50,10 @@ function load() {
 function sync(collection, state) {
   // Ownership never disappears when an individual changes side in battle.
   const owned = new Map(collection.roster.map(p => [p.id, { ...p }]));
-  for (const piece of state.roster) if (!owned.has(piece.id)) owned.set(piece.id, { ...piece });
+  for (const piece of state.roster) owned.set(piece.id, { ...Growth.ensure(piece) });
   collection.roster = [...owned.values()];
+  collection.king = { ...Growth.ensure(state.king || collection.king) };
+  collection.crystals = state.crystals || 0;
   state.roster = collection.roster.map(p => ({ ...p }));
   collection.formation = state.formation.slice();
   collection.nextId = Math.max(collection.nextId, state.nextId);

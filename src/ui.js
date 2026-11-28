@@ -1,7 +1,7 @@
 /* UI adapter: no rule data here. All actions go through the pure Engine. */
 (() => {
 'use strict';
-const { MASTER, ARMY_RULES, Engine, Storage } = globalThis.Sekasoko;
+const { MASTER, ARMY_RULES, Engine, Storage, Growth } = globalThis.Sekasoko;
 const $ = id => document.getElementById(id);
 const board = $('board'), pieceLayer = $('pieceLayer'), cells = $('cells'), overlay = $('overlay'), modal = $('modal');
 const names = ['はじまりの回廊','苔むした階段','忘れられた門','薄明の広間','石像の庭','残響の迷宮','深緑の祭壇','竜影の回廊','世界の継ぎ目','底へ続く扉'];
@@ -210,7 +210,7 @@ function paintUnits() {
 }
 function paintInspector() {
   const u=selected(), ally=u?.side==='player',inHand=!!selectedHand();
-  const info=u?(inHand?{baseAtk:MASTER[u.type].atk,atk:MASTER[u.type].atk,bonusAtk:0,knightIds:[],guardId:null,guardIds:[],passives:Engine.passivesFor(u.type)}:Engine.combatInfo(state,u.id)):null;
+  const info=u?(inHand?{baseAtk:Growth.stats(u).atk,atk:Growth.stats(u).atk,bonusAtk:0,knightIds:[],guardId:null,guardIds:[],passives:Engine.passivesFor(u.type)}:Engine.combatInfo(state,u.id)):null;
   const oldDetail=$('inspectorBody').querySelector('.status-copy');
   const detailScroll=u&&oldDetail?.dataset.detailId===u.id?oldDetail.scrollTop:0;
   $('selectedMark').textContent=u?`${ally?'味方':'敵'}${inHand?'手駒':''} · ${info.passives.map(p=>p.name).join('／')||'能力'}`:'未選択';
@@ -418,11 +418,11 @@ function showFormation() {
   const preparing=state.phase==='preparation';
   const cost=state.formation.reduce((sum,id)=>sum+MASTER[state.roster.find(p=>p.id===id).type].cost,0);
   const rosterCards=state.roster.map((p,i)=>{
-    const m=MASTER[p.type],chosen=state.formation.includes(p.id);
+    const m={...MASTER[p.type],...Growth.stats(p)},chosen=state.formation.includes(p.id);
     const isNew=i>=state.roster.length-state.lastRewards.length;
-    return `<button class="roster-card ${chosen?'chosen':''}" data-roster="${p.id}" aria-pressed="${chosen}" aria-label="${m.name} 個体${i+1} コスト${m.cost} ${chosen?'出撃中':'控え'}"><span class="roster-icon" aria-hidden="true">${m.icon}</span><span class="cost">COST ${m.cost}</span><span class="check">${chosen?'✓ 出撃':isNew?'NEW':''}</span><span class="name">${m.name} <small style="color:var(--muted)">#${i+1}</small></span><span class="mini-stat">HP ${m.hp}　ATK ${m.atk}<br>移動 ${m.move}　射程 ${m.range}</span></button>`;
+    return `<button class="roster-card ${chosen?'chosen':''}" data-roster="${p.id}" aria-pressed="${chosen}" aria-label="${m.name} 個体${i+1} コスト${m.cost} ${chosen?'出撃中':'控え'}"><span class="roster-icon" aria-hidden="true">${m.icon}</span><span class="cost">COST ${m.cost}</span><span class="check">${chosen?'✓ 出撃':isNew?'NEW':''}</span><span class="name">${m.name} <small style="color:var(--muted)">#${i+1}</small></span><span class="mini-stat">Lv.${Growth.level(p)} · ${Growth.rank(p)} · EXP ${p.exp||0}/${Growth.required(p)}<br>HP ${m.hp}　ATK ${m.atk}<br>移動 ${m.move}　射程 ${m.range}</span></button>`;
   }).join('');
-  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">${preparing?'EXPEDITION PREPARATION':`FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY`}</div><h2 id="modalTitle">${preparing?'所有駒を選んで、世界の底へ。':'手駒を迎えて、さらに深く。'}</h2><p>${preparing?`所有 ${state.roster.length+1}体（王を含む） · ${saveWarningShown?'自動保存できていないため、ブラウザーの保存設定を確認してね。':'この端末に自動保存。'}<br>王は必須。手駒を選んで探索を始めよう。`:`正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。<br>味方は全員復帰・HP全回復。次の仲間を選ぼう。`}</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${preparing?'':rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王 <small>#${state.kingId}</small></span><span class="mini-stat">HP 12　ATK 2<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button class="primary" id="nextFloorBtn">${preparing?'探索開始 →':`${state.floor+1}Fへ進む →`}</button></div>`);
+  openModal('formation',`<div class="modal-title"><div><div class="eyebrow">${preparing?'EXPEDITION PREPARATION':`FLOOR ${String(state.floor).padStart(2,'0')} — VICTORY`}</div><h2 id="modalTitle">${preparing?'所有駒を選んで、世界の底へ。':'手駒を迎えて、さらに深く。'}</h2><p>${preparing?`所有 ${state.roster.length+1}体（王を含む） · ${saveWarningShown?'自動保存できていないため、ブラウザーの保存設定を確認してね。':'この端末に自動保存。'}<br>王は必須。手駒を選んで探索を始めよう。`:`正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。<br>味方は全員復帰・HP全回復。次の仲間を選ぼう。`}</p></div><span style="color:var(--gold);font-size:27px">✦</span></div><div class="rewards" aria-label="獲得した手駒">${preparing?'':rewardsHTML()}</div><div class="divider"></div><div class="formation-bar"><span>結晶 <b id="crystalBalance">${state.crystals||0}</b> EXP · 次の出撃メンバー <small>タップで入れ替え</small></span><span class="formation-count">手駒 ${state.formation.length}/${ARMY_RULES.maxHandPieces}　コスト ${cost}/${ARMY_RULES.costLimit}</span></div><div class="roster"><div class="roster-card fixed"><span class="roster-icon">${MASTER.king.icon}</span><span class="cost">COST 0</span><span class="check" style="color:var(--gold)">必須</span><span class="name">王 <small>#${state.kingId}</small></span><span class="mini-stat">Lv.${Growth.level(state.king)} · F · EXP ${state.king.exp||0}/${Growth.required(state.king)}<br>HP ${Growth.stats(state.king).hp}　ATK ${Growth.stats(state.king).atk}<br>移動 1　射程 1</span></div>${rosterCards}</div><div class="modal-actions"><span class="modal-note">同じ種類も編成OK。選んだ${ARMY_RULES.maxHandPieces}体までが王と出撃するよ。</span><button id="trainBtn">経験の結晶で育成</button><button class="primary" id="nextFloorBtn">${preparing?'探索開始 →':`${state.floor+1}Fへ進む →`}</button></div>`);
   modal.querySelectorAll('[data-roster]').forEach(button=>button.addEventListener('click',()=>{
     const id=button.dataset.roster;
     const ids=state.formation.includes(id)?state.formation.filter(p=>p!==id):[...state.formation,id];
@@ -430,17 +430,44 @@ function showFormation() {
     if(!result.ok){toast(result.error);return;}
     saveState();showFormation();modal.querySelector(`[data-roster="${id}"]`)?.focus();
   }));
+  $('trainBtn').addEventListener('click',showTraining);
   $('nextFloorBtn').addEventListener('click',()=>{
     const result=preparing?Engine.begin(state):Engine.advance(state);if(!result.ok){toast(result.error);return;}
     saveState();
     attackMode=false;selectedId=null;selectedHandId=null;closeModal();render();toast(`${state.floor}Fへ。軍団のHPが全回復した！`);
   });
 }
+function showTraining() {
+  if(!['preparation','victory','defeat','clear'].includes(state.phase))return;
+  const owned=[state.king,...state.roster],balance=state.crystals||0;
+  openModal('training',`<div class="eyebrow">GROW YOUR COMPANION</div><h2 id="modalTitle">経験の結晶で育てる</h2><p>結晶残高 <b id="trainingBalance">${balance}</b> EXP · 1結晶＝1EXP</p><div class="training-fields"><label>育てる個体<select id="trainingPieceSelect" aria-label="育てる個体"></select></label><label>投入EXP<input id="trainingAmount" aria-label="投入EXP" type="number" inputmode="numeric" min="1" step="1" max="${balance}" value="${Math.min(100,balance)}"></label><button id="trainingMaxBtn" ${balance?'':'disabled'}>MAX</button></div><p id="trainingPreview" aria-live="polite"></p><div class="modal-actions"><button id="backToFormationBtn">編成へ戻る</button><button id="confirmTrainingBtn" class="primary" ${balance?'':'disabled'}>結晶を投入</button></div>`);
+  for(const piece of owned) {
+    const option=document.createElement('option');option.value=piece.id;
+    option.textContent=`${MASTER[piece.type].icon} ${MASTER[piece.type].name} #${piece.id} · Lv.${Growth.level(piece)} · ${Growth.rank(piece)} · EXP ${piece.exp||0}/${Growth.required(piece)}`;
+    $('trainingPieceSelect').appendChild(option);
+  }
+  function preview() {
+    const piece=owned.find(p=>p.id===$('trainingPieceSelect').value),amount=Number($('trainingAmount').value);
+    const valid=Number.isSafeInteger(amount)&&amount>0&&amount<=balance;
+    $('confirmTrainingBtn').disabled=!valid;
+    const future={...piece};if(valid)Growth.addEXP(future,amount);
+    $('trainingPreview').textContent=`Lv.${Growth.level(piece)} → Lv.${Growth.level(future)} · HP ${Growth.stats(piece).hp} → ${Growth.stats(future).hp} · ATK ${Growth.stats(piece).atk} → ${Growth.stats(future).atk} · 成長後EXP ${future.exp||0}/${Growth.required(future)}`;
+  }
+  $('trainingPieceSelect').addEventListener('change',preview);$('trainingAmount').addEventListener('input',preview);
+  $('trainingMaxBtn').addEventListener('click',()=>{$('trainingAmount').value=balance;preview();});
+  $('backToFormationBtn').addEventListener('click',showFormation);
+  $('confirmTrainingBtn').addEventListener('click',()=>{
+    const result=Engine.train(state,$('trainingPieceSelect').value,Number($('trainingAmount').value));
+    if(!result.ok){toast(result.error);return;}
+    const id=$('trainingPieceSelect').value;saveState();showTraining();$('trainingPieceSelect').value=id;preview();
+  });
+  preview();
+}
 function showResult() {
   if(state.phase==='victory') {showFormation();return;}
   if(!['clear','defeat'].includes(state.phase))return;
   const won=state.phase==='clear';
-  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.010 クリア。':'味方の王のHPが0になった。新しい所有手駒の獲得はなし。元の所有手駒は返還された。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · 所有駒${state.roster.length+1}体（王を含む）。<br>正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">所有駒で編成し直す →</button></div><p style="font-size:10px;margin-top:15px">正式に獲得した所有駒を保持して、1Fから新しく探索するよ。</p></div>`);
+  openModal('ending',`<div class="ending"><div class="eyebrow">${won?'PROTOTYPE COMPLETED':'THE JOURNEY ENDS'}</div><div class="emblem">${won?'♛':'♚'}</div><h2 id="modalTitle">${won?'世界の底へ、最初の一歩。':'王は倒れた。でも、また潜れる。'}</h2><p>${won?'10F踏破！ セカソコ！～手駒編～ VER.011 クリア。':'味方の王のHPが0になった。新しい所有手駒の獲得はなし。元の所有手駒は返還された。'}<br>${state.floor}F到達 · 総行動 ${state.totalActions}手 · 所有駒${state.roster.length+1}体（王を含む）。<br>正式獲得 ${state.lastRewards.length}体 · 元の所有手駒 ${state.lastReturns?.length||0}体を返還。</p>${won?`<div class="rewards" style="justify-content:center">${rewardsHTML()}</div>`:''}<div class="modal-actions"><button class="primary" id="retryBtn">所有駒で編成し直す →</button></div><p style="font-size:10px;margin-top:15px">正式に獲得した所有駒を保持して、1Fから新しく探索するよ。</p></div>`);
   $('retryBtn').addEventListener('click',resetRun);
 }
 function resetRun() {
@@ -452,18 +479,18 @@ function resetRun() {
 function showPieceDetails() {
   const u=selected();if(!u||busy||state.phase!=='player'||!overlay.hidden)return;
   const m=MASTER[u.type],inHand=!!selectedHand();
-  const info=inHand?{atk:m.atk,bonusAtk:0,knightIds:[],guardId:null}:Engine.combatInfo(state,u.id);
+  const info=inHand?{atk:Growth.stats(u).atk,bonusAtk:0,knightIds:[],guardId:null}:Engine.combatInfo(state,u.id);
   const guard=info.guardId?find(info.guardId):null;
   const passives=Engine.passivesFor(u.type).map(p=>`<div class="passive-description"><b>${p.name}</b><p>${p.description}</p></div>`).join('')||'<p>パッシブなし</p>';
   const canAttack=!inHand&&u.side==='player'&&Engine.targets(state,u.id).length>0;
-  openModal('piece',`<div class="piece-detail"><div class="modal-title"><div><div class="eyebrow">${u.side==='player'?'味方':'敵'}${inHand?'の捕獲手駒':'の盤上駒'}</div><h2 id="modalTitle">${m.icon} ${m.name}</h2><p class="detail-id">個体 #${u.id} · ${u.originSide==='player'?'元の所有手駒':'今回の敵出自'}</p></div><button class="icon-btn" id="closeDetailsBtn" aria-label="駒の詳細を閉じる">×</button></div><div class="detail-stats"><span>${inHand?'出撃時 ':''}HP<b>${inHand?u.maxHp:u.hp} / ${u.maxHp}</b></span><span>ATK<b class="detail-effective-atk">${info.atk}</b><small>基礎 ${m.atk} ＋ ${info.bonusAtk}</small></span><span>移動<b>${m.move}</b></span><span>射程<b>${m.range}</b></span><span>編成コスト<b>${m.cost}</b></span></div><div class="protection-info">${inHand?'再出撃は満HP・コストなし。手駒内のパッシブは発動せず、出撃直後から有効。':guard?`守護の石壁：${MASTER[guard.type].name} #${guard.id} が肩代わり（HP ${guard.hp} / ${guard.maxHp}）`:'守護の石壁：保護なし'}</div><div class="passive-info">${info.knightIds.length?`<p>鼓舞：隣接する騎士${info.knightIds.length}体で強化中。</p>`:''}${passives}</div>${inHand?'<p>味方の手駒を選んで、光る空きマスへ出撃。敵陣も選べる。戦闘中の人数上限はない。</p>':''}<div class="modal-actions"><button id="detailAttackBtn" ${canAttack?'':'disabled'}>通常攻撃</button><button disabled>固有技（未実装）</button><button disabled>必殺技（未実装）</button><button class="primary" id="backFromDetailsBtn">盤面へ戻る</button></div></div>`);
+  openModal('piece',`<div class="piece-detail"><div class="modal-title"><div><div class="eyebrow">${u.side==='player'?'味方':'敵'}${inHand?'の捕獲手駒':'の盤上駒'}</div><h2 id="modalTitle">${m.icon} ${m.name}</h2><p class="detail-id">個体 #${u.id} · ${u.originSide==='player'?'元の所有手駒':'今回の敵出自'}</p></div><button class="icon-btn" id="closeDetailsBtn" aria-label="駒の詳細を閉じる">×</button></div><p class="growth-detail">Lv.${Growth.level(u)} · ランク ${Growth.rank(u)} · EXP ${u.exp||0} / ${Growth.required(u)}</p><div class="detail-stats"><span>${inHand?'出撃時 ':''}HP<b>${inHand?u.maxHp:u.hp} / ${u.maxHp}</b></span><span>ATK<b class="detail-effective-atk">${info.atk}</b><small>Lv ATK ${Growth.stats(u).atk} ＋ ${info.bonusAtk}</small></span><span>移動<b>${m.move}</b></span><span>射程<b>${m.range}</b></span><span>編成コスト<b>${m.cost}</b></span></div><div class="protection-info">${inHand?'再出撃は満HP・コストなし。手駒内のパッシブは発動せず、出撃直後から有効。':guard?`守護の石壁：${MASTER[guard.type].name} #${guard.id} が肩代わり（HP ${guard.hp} / ${guard.maxHp}）`:'守護の石壁：保護なし'}</div><div class="passive-info">${info.knightIds.length?`<p>鼓舞：隣接する騎士${info.knightIds.length}体で強化中。</p>`:''}${passives}</div>${inHand?'<p>味方の手駒を選んで、光る空きマスへ出撃。敵陣も選べる。戦闘中の人数上限はない。</p>':''}<div class="modal-actions"><button id="detailAttackBtn" ${canAttack?'':'disabled'}>通常攻撃</button><button disabled>固有技（未実装）</button><button disabled>必殺技（未実装）</button><button class="primary" id="backFromDetailsBtn">盤面へ戻る</button></div></div>`);
   $('closeDetailsBtn').addEventListener('click',closeModal);$('backFromDetailsBtn').addEventListener('click',closeModal);
   $('detailAttackBtn').addEventListener('click',()=>{closeModal();$('normalAttackBtn').click();});
 }
 $('detailsBtn').addEventListener('click',showPieceDetails);
 function showRules() {
   const passiveRules=Object.keys(MASTER).flatMap(type=>Engine.passivesFor(type).map(p=>`${MASTER[type].name}「${p.name}」：${p.description}`)).join("<br>");
-  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.010</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>王以外を撃破すると、その個体が戦闘中の捕獲手駒に。敵も捕獲・再出撃するよ。<br>勝利時に「今回の敵出自で、いま味方に所属する個体」だけを100%正式獲得。敵に奪い返された個体は獲得しない。元の所有手駒は勝敗を問わず返還される。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。捕獲手駒は同じ戦闘中にも再出撃できる。階層をまたぐ正式な編成とは別で、10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>この端末に自動保存し、再起動すると続きから。所有駒は新しい探索にも引き継ぐ。音は未実装。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータスの「詳細」から、強化や保護も確認しよう。</p></section><section><h3>06 · 捕獲して、再出撃。</h3><p>味方の捕獲手駒を選び、光る空きマスへ。全35マスが対象で、敵陣や敵王の隣もOK。<br>再出撃だけで1行動、満HP・コストなし。戦闘中は空きマスがある限り出撃できる。出撃直後からパッシブが有効で、手駒内では発動しない。再捕獲でも同じ個体のまま。横スクロールで全個体を選べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
+  openModal('rules',`<div class="modal-title"><div><div class="eyebrow">HOW TO PLAY · VER.011</div><h2 id="modalTitle">一手ずつ、仲間と底へ。</h2></div><button class="icon-btn" id="closeRulesBtn" aria-label="遊び方を閉じる">×</button></div><div class="rules-grid"><section><h3>01 · 動く、攻める、待つ。</h3><p>味方の駒 → 青いマスで移動。<br>味方の駒 → 赤い敵で攻撃。<br>移動と攻撃はそれぞれ1行動。1体の行動後、敵と交代するよ。待機は未選択でも使える。範囲は上下左右の距離、移動は駒を通り抜けられない。遠距離攻撃は射線を遮られないよ。</p></section><section><h3>02 · 王を守って、手駒を集める。</h3><p>敵の王を倒せば勝利、味方の王が倒れたら敗北。王手・詰みはなし。<br>王以外を撃破すると、その個体が戦闘中の捕獲手駒に。敵も捕獲・再出撃するよ。<br>勝利時に「今回の敵出自で、いま味方に所属する個体」だけを100%正式獲得。敵に奪い返された個体は獲得しない。元の所有手駒は勝敗を問わず返還される。</p></section><section><h3>03 · 軍団を組んで、次の階層へ。</h3><p>王1体＋手駒最大${ARMY_RULES.maxHandPieces}体、コスト合計${ARMY_RULES.costLimit}以内。<br>同じ種類も複数編成OK。階層の間に全員が復帰し、HP全回復。捕獲手駒は同じ戦闘中にも再出撃できる。階層をまたぐ正式な編成とは別で、10Fを突破すれば試作版クリア！</p></section><section><h3>04 · 試作版について。</h3><p>数値と敵編成は仮仕様。2Fから敵はランダム、深層ほど強い敵に出会いやすくなるよ。<br>この端末に自動保存し、再起動すると続きから。所有駒は新しい探索にも引き継ぐ。探索外・階層間は経験の結晶で王も育成できる。LvでHP・ATKが上がり、撃破EXPは同じ戦闘・個体の初回のみ。音は未実装。iPhoneの縦向き・横向きで遊べるよ。</p></section><section><h3>05 · 仲間と連携する。</h3><p>${passiveRules}<br>自動発動で追加の手番は使わない。鼓舞は加算後に切り捨て。追撃からの追撃や、肩代わりの連鎖は起きないよ。王が倒れたらその時点で決着。ステータスの「詳細」から、強化や保護も確認しよう。</p></section><section><h3>06 · 捕獲して、再出撃。</h3><p>味方の捕獲手駒を選び、光る空きマスへ。全35マスが対象で、敵陣や敵王の隣もOK。<br>再出撃だけで1行動、満HP・コストなし。戦闘中は空きマスがある限り出撃できる。出撃直後からパッシブが有効で、手駒内では発動しない。再捕獲でも同じ個体のまま。横スクロールで全個体を選べるよ。</p></section></div><div class="divider"></div><div class="panel-head">CHARACTER MASTER · 全10種類</div><table class="master-table"><thead><tr><th>手駒</th><th>HP</th><th>ATK</th><th>移動</th><th>射程</th><th>コスト</th></tr></thead><tbody>${Object.values(MASTER).map(m=>`<tr><td>${m.icon} ${m.name}</td><td>${m.hp}</td><td>${m.atk}</td><td>${m.move}</td><td>${m.range}</td><td>${m.cost}</td></tr>`).join('')}</tbody></table><div class="modal-actions"><button class="primary" id="backToBoardBtn">盤面に戻る →</button></div>`);
   $('closeRulesBtn').addEventListener('click',closeModal);$('backToBoardBtn').addEventListener('click',closeModal);
 }
 $('helpBtn').addEventListener('click',showRules);

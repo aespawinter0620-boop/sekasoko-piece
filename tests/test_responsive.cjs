@@ -11,7 +11,7 @@ const armyCollection=require('./army_fixture.cjs');
 const qaHTML=html.replace('let state = initialState(), selectedId',`let state = (globalThis.__qaState = Engine.createRun(${JSON.stringify(armyCollection())})), selectedId`)
   .replace('state=Engine.createRun(collection,true);','state=(globalThis.__qaState=Engine.createRun(collection,true));')
   // Existing synthetic fixtures replace ownership; isolate them from persistent storage.
-  .replace('function saveState() {',"function saveState() { collection={king:{id:state.kingId,type:'king'},roster:state.roster.map(p=>({...p})),formation:state.formation.slice(),nextId:state.nextId}; return;");
+  .replace('function saveState() {',"function saveState() { collection={king:{...state.king,id:state.kingId,type:'king'},crystals:state.crystals||0,roster:state.roster.map(p=>({...p})),formation:state.formation.slice(),nextId:state.nextId}; return;");
 assert.notEqual(qaHTML,html,'The test-only state capture must match the UI entry point.');
 // Captured before VER.004 from the verified VER.003 HTML; keeps CI comparison independent of ignored artifacts.
 const BASELINE003={"390x844":{"width":339.984375,"height":218.546875},"375x667":{"width":324.984375,"height":208.90625},"320x568":{"width":280,"height":180},"844x390":{"width":437.109375,"height":280.984375},"667x375":{"width":390,"height":250.703125},"812x375":{"width":413.765625,"height":265.984375},"844x330":{"width":365.546875,"height":234.984375},"1440x1000":{"width":1043,"height":670.5}};
