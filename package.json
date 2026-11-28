@@ -1,8 +1,8 @@
 {
   "name": "sekasoko-piece",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "private": true,
-  "description": "セカソコ！～手駒編～ VER.008 borderless icon and unrestricted battle redeployment",
+  "description": "セカソコ！～手駒編～ VER.009 golden frame and marble board skin",
   "scripts": {
     "build": "python3 scripts/build.py",
     "check": "python3 scripts/build.py --check",
