@@ -811,6 +811,7 @@ test('Every starting board individual has immutable-origin metadata and hands st
   for(const u of s.units) {
     assert.equal(u.originSide,u.side); assert.equal(u.currentSide,u.side);
     if(u.side==='player'&&u.type!=='king') assert.equal(s.roster.find(r=>r.id===u.rosterId)?.type,u.type);
+    else if(u.side==='player') assert.equal(u.rosterId,s.kingId);
     else assert.equal(u.rosterId,null);
   }
   assert.equal(new Set(s.units.filter(u=>u.side==='player'&&u.type!=='king').map(u=>u.rosterId)).size,11);
