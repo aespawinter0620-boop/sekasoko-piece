@@ -54,6 +54,7 @@ npm run dev
 | パス | 内容 |
 | --- | --- |
 | `src/engine.js` | 共通マスター、軍団設定、パッシブ、攻撃予測、捕獲・再出撃・正式獲得・返還、編成、階層進行、AI |
+| `src/storage.js` | 永続所有と探索の分離、localStorageの自動保存・復元・初期化 |
 | `src/ui.js` | 操作、画面表示、演出、ダイアログ |
 | `src/shell.html` | HTML構造とCSS |
 | `scripts/build.py` | ソースを単一HTMLへ組み込むビルド処理 |
